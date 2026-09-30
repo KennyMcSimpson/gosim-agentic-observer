@@ -1,0 +1,67 @@
+"""Build the local-only practice app on the host OS with PyInstaller."""
+
+from __future__ import annotations
+
+import os
+import platform
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+DIST = ROOT / "dist"
+WORK = ROOT / "build"
+IS_WINDOWS = os.name == "nt"
+HOST = "PracticeAgentHost.exe" if IS_WINDOWS else "PracticeAgentHost"
+
+
+def pyinstaller(*args: str) -> None:
+    subprocess.run([sys.executable, "-m", "PyInstaller", *args], cwd=ROOT, check=True)
+
+
+def main() -> int:
+    DIST.mkdir(exist_ok=True)
+    pyinstaller(
+        "--noconfirm", "--clean", "--onefile", "--console",
+        "--name", "PracticeAgentHost",
+        "--distpath", str(DIST / "helper"),
+        "--workpath", str(WORK / "helper"),
+        "--specpath", str(WORK / "spec"),
+        str(ROOT / "practice_worker.py"),
+    )
+    helper = DIST / "helper" / HOST
+    if not helper.is_file():
+        raise FileNotFoundError(helper)
+    pyinstaller(
+        "--noconfirm", "--clean", "--onefile", "--windowed",
+        "--name", "GOSIMPractice",
+        "--hidden-import", "challenge.replay",
+        "--add-data", f"{ROOT / 'scenarios'}:scenarios",
+        "--add-data", f"{ROOT / 'agent'}:agent",
+        "--add-data", f"{ROOT / 'challenge' / 'templates'}:challenge/templates",
+        "--add-binary", f"{helper}:.",
+        "--distpath", str(DIST),
+        "--workpath", str(WORK / "gui"),
+        "--specpath", str(WORK / "spec"),
+        str(ROOT / "practice_gui.py"),
+    )
+    if IS_WINDOWS:
+        executable = DIST / "GOSIMPractice.exe"
+        if not executable.is_file():
+            raise FileNotFoundError(executable)
+        archive = DIST / "GOSIMPractice-Windows-x64.zip"
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(executable, executable.name)
+    else:
+        app = DIST / "GOSIMPractice.app"
+        if not app.is_dir():
+            raise FileNotFoundError(app)
+        archive = DIST / f"GOSIMPractice-macOS-{platform.machine().lower()}.zip"
+        subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(archive)], check=True)
+    print(archive)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

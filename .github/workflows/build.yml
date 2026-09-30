@@ -1,0 +1,56 @@
+name: Build local practice app
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            package: windows-x64
+          - os: macos-15
+            package: macos-arm64
+          - os: macos-15-intel
+            package: macos-x86_64
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install packager
+        run: python -m pip install 'pyinstaller==6.22.3'
+      - name: Build native app
+        run: python scripts/build.py
+      - name: Run both public scenarios inside packaged app
+        run: python scripts/smoke_release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GOSIMPractice-${{ matrix.package }}
+          path: dist/GOSIMPractice-*.zip
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: GOSIMPractice-*
+          merge-multiple: true
+          path: release-assets
+      - name: Publish verified packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release-assets/*.zip --repo "$GITHUB_REPOSITORY" --generate-notes --verify-tag
