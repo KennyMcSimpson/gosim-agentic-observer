@@ -1,6 +1,6 @@
-langchain>=1.0,<2
-langgraph>=1.0,<2
-langchain-openai>=1.0,<2
-langchain-anthropic>=1.0,<2
-python-dotenv>=1.0,<2
-socksio>=1.0,<2
+langchain==1.4.3
+langgraph==1.2.12
+langchain-openai==1.6.7
+langchain-anthropic==1.7.5
+python-dotenv==1.2.3
+socksio==1.0.0

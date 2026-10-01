@@ -29,8 +29,13 @@ def validate_submission_manifest() -> None:
     if not isinstance(manifest.get("build"), list):
         raise AssertionError("root observer.project.json build must be a JSON array")
     environment = manifest.get("environment")
-    if not isinstance(environment, dict) or environment.get("MODEL_PROVIDER") != "deterministic":
-        raise AssertionError("root observer.project.json must declare the verified deterministic smoke path")
+    if not isinstance(environment, dict) or environment.get("MODEL_PROVIDER") != "openai":
+        raise AssertionError("root observer.project.json must use the platform OpenAI-compatible proxy")
+    if environment.get("PYTHONPATH") != ".deps":
+        raise AssertionError("root observer.project.json must expose build dependencies from .deps")
+    build = manifest.get("build")
+    if len(build) != 1 or "--target" not in build[0] or ".deps" not in build[0]:
+        raise AssertionError("root observer.project.json must install agent requirements into .deps")
     # A developer may keep a local agent/.env for source runs.  The build script
     # stages the actual packaged input under build/agent-bundle; inspect that
     # directory so this smoke test verifies the artifact boundary rather than

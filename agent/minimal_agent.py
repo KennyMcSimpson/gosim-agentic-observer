@@ -43,7 +43,10 @@ def run(stdin=sys.stdin, stdout=sys.stdout) -> None:
         message_type, payload = parse_platform_message(message)
         if message_type == "initialize":
             agent = MinimalDecisionAgent(
-                payload, model=model, top_k=settings.top_k_candidates
+                payload,
+                model=model,
+                top_k=settings.top_k_candidates,
+                model_refresh_nights=settings.model_refresh_nights,
             )
             continue
         if message_type == "finish":
@@ -51,7 +54,9 @@ def run(stdin=sys.stdin, stdout=sys.stdout) -> None:
             # Write the one-line summary and exit on our own inside the grace period.
             print(
                 f"minimal-agent finished: termination_reason={payload.get('termination_reason')} "
-                f"decisions={decisions} last_decision_sequence={payload.get('last_decision_sequence')}",
+                f"decisions={decisions} last_decision_sequence={payload.get('last_decision_sequence')} "
+                f"model_refreshes={len(agent.memory.get('model_stage_history', [])) if agent else 0} "
+                f"last_model_stages={','.join(agent.memory.get('model_stage_trace', [])) if agent else ''}",
                 file=sys.stderr,
                 flush=True,
             )

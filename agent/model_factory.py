@@ -54,9 +54,12 @@ class ModelSettings:
     base_url: str
     api_key: str = field(repr=False)
     api_mode: str = "chat"
-    timeout_seconds: float = 30.0
-    max_retries: int = 1
+    # A model call is only made at a bounded night-start trigger. Keep each
+    # stage short so a provider outage cannot consume a full survey wallclock.
+    timeout_seconds: float = 4.0
+    max_retries: int = 0
     top_k_candidates: int = 12
+    model_refresh_nights: int = 7
 
     @classmethod
     def from_environment(cls, dotenv_path: Path | None = None) -> "ModelSettings":
@@ -96,9 +99,10 @@ class ModelSettings:
             base_url=base_url,
             api_key=api_key,
             api_mode=api_mode,
-            timeout_seconds=float(os.environ.get("LLM_TIMEOUT_SECONDS", "30")),
-            max_retries=int(os.environ.get("LLM_MAX_RETRIES", "1")),
+            timeout_seconds=float(os.environ.get("LLM_TIMEOUT_SECONDS", "4")),
+            max_retries=int(os.environ.get("LLM_MAX_RETRIES", "0")),
             top_k_candidates=int(os.environ.get("LLM_TOP_K_CANDIDATES", "12")),
+            model_refresh_nights=int(os.environ.get("LLM_REFRESH_NIGHTS", "7")),
         )
 
     @property
@@ -157,4 +161,3 @@ def build_chat_model(settings: ModelSettings):
     else:
         kwargs["use_responses_api"] = False
     return ChatOpenAI(**kwargs)
-

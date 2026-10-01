@@ -30,8 +30,13 @@ def validate_manifests() -> tuple[dict, dict]:
             raise AssertionError(f"{label} manifest must declare jsonl-v2")
         if not isinstance(manifest.get("build"), list):
             raise AssertionError(f"{label} manifest build must be an array")
-        if manifest.get("environment", {}).get("MODEL_PROVIDER") != "deterministic":
-            raise AssertionError(f"{label} smoke manifest must use deterministic provider")
+        if manifest.get("environment", {}).get("MODEL_PROVIDER") != "openai":
+            raise AssertionError(f"{label} manifest must select the platform OpenAI-compatible proxy")
+        if manifest.get("environment", {}).get("PYTHONPATH") != ".deps":
+            raise AssertionError(f"{label} manifest must expose build dependencies from .deps")
+        build = manifest.get("build")
+        if len(build) != 1 or "--target" not in build[0] or ".deps" not in build[0]:
+            raise AssertionError(f"{label} manifest must install agent dependencies into .deps")
     if root["run"] != ["python3", "-u", "agent/minimal_agent.py"]:
         raise AssertionError("root manifest run path changed")
     if agent["run"] != ["python3", "-u", "minimal_agent.py"]:

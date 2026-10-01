@@ -2,11 +2,14 @@
   "schema_version": "observer-project-v1",
   "protocol": "jsonl-v2",
   "image": "python:3.12-slim",
-  "build": [],
+  "build": [
+    ["python3", "-m", "pip", "install", "--disable-pip-version-check", "--no-cache-dir", "--target", ".deps", "-r", "agent/requirements.txt"]
+  ],
   "run": ["python3", "-u", "agent/minimal_agent.py"],
   "working_directory": ".",
   "environment": {
     "PYTHONDONTWRITEBYTECODE": "1",
-    "MODEL_PROVIDER": "deterministic"
+    "MODEL_PROVIDER": "openai",
+    "PYTHONPATH": ".deps"
   }
 }

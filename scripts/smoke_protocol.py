@@ -96,7 +96,9 @@ def run_agent(agent_dir: Path, messages: list[dict]) -> subprocess.CompletedProc
         "PYTHONIOENCODING": "utf-8",
         "PYTHONUNBUFFERED": "1",
         "PYTHONDONTWRITEBYTECODE": "1",
-        "MODEL_PROVIDER": "deterministic",
+        # The manifest targets the platform proxy. Without a key this still
+        # exercises the deterministic configuration fallback.
+        "MODEL_PROVIDER": "openai",
     }
     if os.name == "nt" and os.environ.get("SYSTEMROOT"):
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
@@ -146,6 +148,53 @@ def check_model_fallback(initialize: dict, snapshot: dict) -> None:
     if decision.get("tile_id") == "NOT-A-CANDIDATE":
         raise AssertionError("invalid model candidate escaped validation")
     print(f"invalid model candidate fallback: {decision['action']} {decision.get('tile_id', '')}; source=deterministic")
+
+
+def check_two_stage_model_budget(initialize: dict, snapshot: dict) -> None:
+    """Verify planner+selector run only at the bounded night refresh trigger."""
+    sys.path.insert(0, str(AGENT_SOURCE))
+    from decision_graph import MinimalDecisionAgent
+    from scoring_preview import preview_actions
+
+    candidates = preview_actions(snapshot, initialize["payload"]["scoring_contract"])
+    if len(candidates) < 2:
+        raise AssertionError("two-stage smoke needs two legal candidates")
+    selected = candidates[1]
+
+    class TwoStageModel:
+        def __init__(self):
+            self.calls = 0
+
+        def invoke(self, messages):
+            self.calls += 1
+            if self.calls % 2 == 1:
+                return type("Response", (), {"content": '{"preferred_region_ids":[],"priority_request_ids":[],"reason":"smoke plan"}'})()
+            return type(
+                "Response",
+                (),
+                {"content": json.dumps({
+                    "action": "observe",
+                    "tile_id": selected.tile_id,
+                    "program": selected.program,
+                    "request_id": selected.request_id,
+                    "reason": "smoke selector",
+                })},
+            )()
+
+    model = TwoStageModel()
+    agent = MinimalDecisionAgent(initialize["payload"], model=model, top_k=12, model_refresh_nights=7)
+    first = agent.decide(copy.deepcopy(snapshot))
+    if model.calls != 2 or first.get("decision_source") != "model":
+        raise AssertionError(f"planner/selector did not run once: calls={model.calls}, decision={first}")
+    agent.decide(copy.deepcopy(snapshot))
+    if model.calls != 2:
+        raise AssertionError(f"same-night model refresh exceeded budget: calls={model.calls}")
+    later = copy.deepcopy(snapshot)
+    later["cursor"] = {**later["cursor"], "night_id": "N20261012"}
+    agent.decide(later)
+    if model.calls != 4:
+        raise AssertionError(f"seven-night model refresh was not re-armed: calls={model.calls}")
+    print("two-stage model smoke: planner+selector=2 calls per refresh; same-night repeat=0; refresh=2")
 
 
 def main() -> int:
@@ -223,6 +272,7 @@ def main() -> int:
         )
 
     check_model_fallback(initialize, snapshot)
+    check_two_stage_model_budget(initialize, snapshot)
     print("protocol smoke passed; fixture source=scenarios/dev-reference via ChallengeWorkflow public API")
     return 0
 

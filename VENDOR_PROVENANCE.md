@@ -7,5 +7,5 @@
 - 唯一上游运行器改动：local_runner.py 的 build_agent_env 在 Windows 上把 TEMP、TMP 指向运行目录的 scratch，并传递 SYSTEMROOT，以允许 PyInstaller 内置 Agent Host 解包。应用调用时把官网完整项目练习的场景上限显式设为 18000 秒；公开场景文件自带的默认值较短。仿真与评分公式未修改。
 - 本地构建会先把 agent/ 复制到忽略 `.env`、常见 `secret`/`credential`/`password`/`api_key`/`access_token` 文件、证书密钥和 Python 缓存的暂存目录，再交给 PyInstaller，避免个人本地模型配置进入桌面包；CI smoke 会校验根/agent manifest、声明的完整项目入口、JSONL v2 envelope 和无环境文件输入。
 - GitHub Actions 的 tag 发布会从同一批通过 smoke 的 ZIP/EXE 生成 `SHA256SUMS.txt`；README 使用 latest Release 链接，避免旧版本桌面包与当前源码脱节。
-- 根完整项目 manifest 当前回到官方示例的 `MODEL_PROVIDER=deterministic`，用于无密钥的公开场景云端 smoke；模型依赖文件和平台 `OPENAI_BASE_URL`/`OPENAI_API_KEY` 适配仍保留，但没有带 key 的模型云端 smoke 证据。当前仍只有一个已实现的模型决策环节，未声称满足正式奖项的两阶段要求。
+- 根完整项目 manifest 使用平台要求的 `MODEL_PROVIDER=openai`、`.deps` build 和 `PYTHONPATH=.deps`；六个直接依赖已固定到 2026-10-01 现场解析成功的版本，没有 key 的本地 smoke 会明确回退到确定性路径。模型阶段现在是夜初 planner 加合法候选 selector 两个有界环节，默认每 7 个新夜晚最多各调用一次，默认单次超时 4 秒、无重试；仍没有带真实 key 的云端模型 smoke 证据，不能把正式评奖准备宣称为已完成。
 - 原包没有找到明确的 LICENSE/COPYING 文件；上游代码与数据不在此声明为我们的原创，也不以本仓库为它们授予新许可证。用户明确要求队友可直接访问，因此仓库现为 public；公开使用前应保留上游来源说明，并注意上游未提供明确再分发许可。

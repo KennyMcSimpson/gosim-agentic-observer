@@ -1,4 +1,4 @@
-"""Small acyclic LangGraph for one current-snapshot observation decision."""
+"""Small acyclic LangGraph for bounded public-snapshot model decisions."""
 
 from __future__ import annotations
 
@@ -22,6 +22,12 @@ Every listed candidate is a legal current start and already uses the public scor
 formula. Return exactly one JSON object with action, tile_id, program, request_id,
 and reason. Select only a listed (tile_id, program, request_id) tuple. Do not plan
 future slots and do not invent simulator calls or fields."""
+
+PLANNER_PROMPT = """You are the planning stage of a telescope scheduler. Use only the
+current public snapshot and the listed legal candidates. Produce one JSON object with
+preferred_region_ids (zero or more listed region IDs), priority_request_ids (zero or
+more listed request IDs), and reason. Do not invent IDs, inspect future truth, or
+choose an action. Keep the lists short."""
 
 
 def _compact(preview: CandidatePreview, rank: int) -> dict[str, object]:
@@ -93,14 +99,57 @@ def _prepare(state: DecisionState) -> dict[str, object]:
     }
 
 
-def _model_node(state: DecisionState, model: object | None) -> dict[str, object]:
+def _planner_node(state: DecisionState, model: object | None) -> dict[str, object]:
+    """Run the first model stage only at the caller's bounded refresh trigger."""
+    if model is None or not state.get("allow_model_call"):
+        return {"model_plan": None, "model_stage_trace": []}
     candidates = state["compact_candidates"]
-    if model is None or not candidates:
-        return {"model_selection": None}
+    if not candidates:
+        return {"model_plan": None, "model_stage_trace": ["planner:skipped-empty"]}
+    prompt = json.dumps(
+        {
+            "cursor": state["snapshot"]["cursor"],
+            "night_start": state["snapshot"].get("night_start"),
+            "weekly": state["snapshot"].get("weekly"),
+            "candidates": candidates,
+            "output_schema": {
+                "preferred_region_ids": ["listed region_id"],
+                "priority_request_ids": ["listed request_id"],
+                "reason": "one short sentence",
+            },
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    try:
+        plan = _parse_object(_extract_text(model.invoke([("system", PLANNER_PROMPT), ("human", prompt)])))
+        regions = {str(item.get("region_id", "")) for item in candidates}
+        requests = {str(item.get("request_id", "")) for item in candidates if item.get("request_id")}
+        preferred_regions = [str(item) for item in plan.get("preferred_region_ids", []) if str(item) in regions][:8]
+        priority_requests = [str(item) for item in plan.get("priority_request_ids", []) if str(item) in requests][:8]
+        reason = " ".join(str(plan.get("reason", "model plan")).split())[:240]
+        return {
+            "model_plan": {
+                "preferred_region_ids": preferred_regions,
+                "priority_request_ids": priority_requests,
+                "reason": reason or "model plan",
+            },
+            "model_stage_trace": ["planner:ok"],
+        }
+    except Exception as exc:
+        return {"model_plan": None, "model_stage_trace": [f"planner:error:{type(exc).__name__}"], "model_error": type(exc).__name__}
+
+
+def _selector_node(state: DecisionState, model: object | None) -> dict[str, object]:
+    """Run the second model stage against the planner output and legal Top-K."""
+    candidates = state["compact_candidates"]
+    if model is None or not state.get("allow_model_call") or not candidates:
+        return {"model_selection": None, "model_stage_trace": state.get("model_stage_trace", [])}
     prompt = json.dumps(
         {
             "decision_sequence": state["snapshot"]["decision_sequence"],
             "cursor": state["snapshot"]["cursor"],
+            "planner": state.get("model_plan"),
             "candidates": candidates,
             "output_schema": {
                 "action": "observe",
@@ -115,9 +164,18 @@ def _model_node(state: DecisionState, model: object | None) -> dict[str, object]
     )
     try:
         response = model.invoke([("system", SYSTEM_PROMPT), ("human", prompt)])
-        return {"model_selection": _parse_object(_extract_text(response))}
+        trace = list(state.get("model_stage_trace", []))
+        trace.append("selector:ok")
+        return {"model_selection": _parse_object(_extract_text(response)), "model_stage_trace": trace}
     except Exception as exc:
-        return {"model_selection": None, "model_error": type(exc).__name__}
+        trace = list(state.get("model_stage_trace", []))
+        trace.append(f"selector:error:{type(exc).__name__}")
+        return {"model_selection": None, "model_stage_trace": trace, "model_error": type(exc).__name__}
+
+
+def _model_node(state: DecisionState, model: object | None) -> dict[str, object]:
+    """Compatibility alias for callers that exercised the old selector node."""
+    return _selector_node(state, model)
 
 
 def _validated_model_decision(
@@ -230,7 +288,8 @@ class _SequentialGraph:
 
     def invoke(self, state: DecisionState) -> DecisionState:
         state = {**state, **_prepare(state)}
-        state = {**state, **_model_node(state, self.model)}
+        state = {**state, **_planner_node(state, self.model)}
+        state = {**state, **_selector_node(state, self.model)}
         return {**state, **_finalize(state)}
 
 
@@ -242,23 +301,29 @@ def build_decision_graph(model: object | None):
         return _SequentialGraph(model)
     graph = StateGraph(DecisionState)
     graph.add_node("prepare", _prepare)
-    graph.add_node("invoke_model", lambda state: _model_node(state, model))
+    graph.add_node("plan", lambda state: _planner_node(state, model))
+    graph.add_node("select", lambda state: _selector_node(state, model))
     graph.add_node("finalize", _finalize)
     graph.add_edge(START, "prepare")
-    graph.add_edge("prepare", "invoke_model")
-    graph.add_edge("invoke_model", "finalize")
+    graph.add_edge("prepare", "plan")
+    graph.add_edge("plan", "select")
+    graph.add_edge("select", "finalize")
     graph.add_edge("finalize", END)
     return graph.compile()
 
 
 class MinimalDecisionAgent:
-    """Stateful facade: anomaly tracking plus one graph invocation per snapshot."""
+    """Stateful facade with deterministic legality and bounded model refreshes."""
 
-    def __init__(self, initial_publication: dict, model: object | None, top_k: int) -> None:
+    def __init__(self, initial_publication: dict, model: object | None, top_k: int, model_refresh_nights: int = 7) -> None:
         if top_k < 1:
             raise ValueError("top_k must be positive")
         self.initial_publication = initial_publication
+        self.model = model
         self.top_k = top_k
+        if model_refresh_nights < 1:
+            raise ValueError("model_refresh_nights must be positive")
+        self.model_refresh_nights = model_refresh_nights
         self.memory: dict = {}  # handed to my_strategy.choose_action on every decision; persists for the run
         self.detector = AnomalyDetector(initial_publication)
         self.graph = build_decision_graph(model)
@@ -270,6 +335,18 @@ class MinimalDecisionAgent:
         reports = self.detector.process_snapshot(snapshot) if mechanics else []
         if mechanics:
             snapshot = self.detector.filter_fault_scope(snapshot)
+        night_id = str((snapshot.get("cursor") or {}).get("night_id", ""))
+        last_model_night = str(self.memory.get("last_model_night", ""))
+        allow_model_call = bool(
+            self.model is not None
+            and mechanics
+            and isinstance(snapshot.get("night_start"), dict)
+            and night_id
+            and (
+                not last_model_night
+                or abs(int(night_id[1:]) - int(last_model_night[1:])) >= self.model_refresh_nights
+            )
+        )
         result = self.graph.invoke(
             {
                 "initial_publication": self.initial_publication,
@@ -277,8 +354,16 @@ class MinimalDecisionAgent:
                 "top_k": self.top_k,
                 "memory": self.memory,
                 "tile_best_scores": self.detector.bests if mechanics else None,
+                "allow_model_call": allow_model_call,
             }
         )
+        if allow_model_call:
+            self.memory["last_model_night"] = night_id
+            self.memory["model_stage_trace"] = result.get("model_stage_trace", [])
+            self.memory["model_plan"] = result.get("model_plan")
+            self.memory.setdefault("model_stage_history", []).append(
+                list(result.get("model_stage_trace", []))
+            )
         decision = result["decision"]
         # When nothing on the board gains anything, spend the slot confirming a
         # suspect tile: a second read separates permanent tags from weather edges.
@@ -311,4 +396,3 @@ class MinimalDecisionAgent:
         if reports:
             decision = {**decision, "reports": reports}
         return decision
-

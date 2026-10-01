@@ -25,8 +25,10 @@ class DecisionState(TypedDict):
     previews: NotRequired[list]
     compact_candidates: NotRequired[list[dict[str, object]]]
     model_selection: NotRequired[dict[str, object] | None]
+    model_plan: NotRequired[dict[str, object] | None]
+    model_stage_trace: NotRequired[list[str]]
     model_error: NotRequired[str]
+    allow_model_call: NotRequired[bool]
     decision: NotRequired[dict[str, object]]
     memory: NotRequired[dict]
     tile_best_scores: NotRequired[dict]
-
