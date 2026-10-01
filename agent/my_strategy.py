@@ -1,11 +1,11 @@
 """你的策略 · Your strategy — the only file you need to edit.
 
 每次决策，平台把「现在可以观测的候选」按公开评分公式排好序交给你（第 1 个是估计收益最高的）。
-你只需要决定：观测其中哪一个，或者这一时隙先等待。改完保存，双击 run_baseline 看分数，然后把这个文件上传到网站即可。
+你只需要决定：观测其中哪一个，或者这一时隙先等待。改完保存，先用公开场景本地复现分数，再把包含 `observer.project.json` 的完整项目提交到网站。
 
 Each decision, the platform hands you the candidates that can legally be observed right now, already ranked
 by the public scoring formula (index 0 = highest estimated gain). Decide which one to observe, or return None
-to wait for this slot. Save, run run_baseline, then upload this single file on the website.
+to wait for this slot. Save, run the public scenarios locally, then submit the complete project (repository or ZIP) on the website.
 
 Every candidate is a dict with these keys:
     tile_id, program (DARK / BRIGHT / BACKUP), request_id ("" when the exposure is not tied to a request),
@@ -21,9 +21,8 @@ Every candidate is a dict with these keys:
 weekly ...) as documented on the platform's Docs page. `memory` is an empty dict at the start of each run that
 you may fill with anything you want to remember between decisions (nothing else persists).
 
-想看一份写完整、每条规则都讲清楚为什么存在的示范，见同目录的 `reference_strategy.py`
-（含实测数字，以及它为什么在当前赛题上只能和基线打平）。
-A fully worked, commented example lives next to this file in `reference_strategy.py`.
+完整项目的入口、协议和本地练习步骤见仓库根目录的 `README.md`；平台规则与当前提交方式以官网 Docs/Rules 页面为准。
+See the repository `README.md` for the complete-project entry, protocol, and local practice steps; the official Docs/Rules pages define the current submission flow.
 """
 
 
