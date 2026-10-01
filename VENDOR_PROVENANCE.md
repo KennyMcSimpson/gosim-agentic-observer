@@ -6,5 +6,5 @@
 - dev-fortnight 用入门包 fetch_scenario.py 于 2026-09-30 从官网公开场景接口下载；脚本报告 22 个文件的 manifest SHA-256 校验通过。
 - 唯一上游运行器改动：local_runner.py 的 build_agent_env 在 Windows 上把 TEMP、TMP 指向运行目录的 scratch，并传递 SYSTEMROOT，以允许 PyInstaller 内置 Agent Host 解包。应用调用时把官网完整项目练习的场景上限显式设为 18000 秒；公开场景文件自带的默认值较短。仿真与评分公式未修改。
 - 本地构建会先把 agent/ 复制到忽略 `.env`、`.env.*` 和 Python 缓存的暂存目录，再交给 PyInstaller，避免个人本地模型配置进入桌面包；CI smoke 会校验根 `observer.project.json` 和无环境文件输入。
-- 根完整项目 manifest 与官方示例一致使用 `.deps` 构建依赖、`PYTHONPATH=.deps` 和 `MODEL_PROVIDER=openai`，让平台注入的 `OPENAI_BASE_URL`/`OPENAI_API_KEY` 可进入可选模型路径；没有凭证或依赖失败时，Agent 保留确定性回退。当前仍只有一个已实现的模型决策环节，未声称满足正式奖项的两阶段要求。
+- 根完整项目 manifest 当前回到官方示例的 `MODEL_PROVIDER=deterministic`，用于无密钥的公开场景云端 smoke；模型依赖文件和平台 `OPENAI_BASE_URL`/`OPENAI_API_KEY` 适配仍保留，但没有带 key 的模型云端 smoke 证据。当前仍只有一个已实现的模型决策环节，未声称满足正式奖项的两阶段要求。
 - 原包没有找到明确的 LICENSE/COPYING 文件；上游代码与数据不在此声明为我们的原创，也不以本仓库为它们授予新许可证。用户明确要求队友可直接访问，因此仓库现为 public；公开使用前应保留上游来源说明，并注意上游未提供明确再分发许可。
