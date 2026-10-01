@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Mapping
 
 from anomaly_detection import AnomalyDetector
@@ -99,6 +100,84 @@ def _prepare(state: DecisionState) -> dict[str, object]:
     }
 
 
+def _known_plan_ids(state: DecisionState) -> tuple[set[str], set[str]]:
+    """Collect IDs that the public publication makes meaningful to a plan.
+
+    A plan can refer to a request or region published for a future window, so the
+    validator cannot be limited to the current Top-K candidate rows.  The values
+    still come only from the current snapshot or immutable initial publication.
+    """
+    snapshot = state["snapshot"]
+    regions: set[str] = set()
+    requests: set[str] = set()
+
+    for candidate in snapshot.get("candidate_tiles", []):
+        if isinstance(candidate, Mapping) and candidate.get("region_id"):
+            regions.add(str(candidate["region_id"]))
+    catalog = (state.get("initial_publication") or {}).get("tile_catalog", {})
+    if isinstance(catalog, Mapping):
+        for region_id in catalog.get("region_ids", []) or []:
+            if isinstance(region_id, str) and region_id:
+                regions.add(region_id)
+        for tile in catalog.get("tiles", []) or []:
+            if isinstance(tile, Mapping) and tile.get("region_id"):
+                regions.add(str(tile["region_id"]))
+
+    def collect_window_rows(rows: object) -> None:
+        if not isinstance(rows, list):
+            return
+        for row in rows:
+            if isinstance(row, Mapping) and row.get("region_id"):
+                regions.add(str(row["region_id"]))
+
+    night_start = snapshot.get("night_start")
+    if isinstance(night_start, Mapping):
+        collect_window_rows(night_start.get("tile_windows"))
+    weekly = snapshot.get("weekly")
+    if isinstance(weekly, Mapping):
+        collect_window_rows(weekly.get("tile_windows"))
+
+    def collect_request_rows(rows: object) -> None:
+        if not isinstance(rows, list):
+            return
+        for request in rows:
+            if isinstance(request, Mapping) and request.get("request_id"):
+                requests.add(str(request["request_id"]))
+
+    collect_request_rows(snapshot.get("active_requests"))
+    if isinstance(weekly, Mapping):
+        collect_request_rows(weekly.get("observation_requests"))
+    return regions, requests
+
+
+def _validated_model_plan(plan: Mapping[str, object], state: DecisionState) -> dict[str, object]:
+    """Validate and normalize a planner response before it reaches the selector."""
+    required = ("preferred_region_ids", "priority_request_ids")
+    for key in required:
+        values = plan.get(key)
+        if not isinstance(values, list):
+            raise ValueError(f"planner field {key} must be a list")
+        if any(not isinstance(value, str) or not value.strip() for value in values):
+            raise ValueError(f"planner field {key} must contain non-empty strings")
+
+    known_regions, known_requests = _known_plan_ids(state)
+    region_values = list(dict.fromkeys(str(value) for value in plan["preferred_region_ids"]))
+    request_values = list(dict.fromkeys(str(value) for value in plan["priority_request_ids"]))
+    unknown_regions = sorted(set(region_values) - known_regions)
+    unknown_requests = sorted(set(request_values) - known_requests)
+    if unknown_regions or unknown_requests:
+        raise ValueError("planner returned an unpublished region or request ID")
+    reason_value = plan.get("reason", "model plan")
+    if not isinstance(reason_value, str):
+        raise ValueError("planner reason must be a string")
+    reason = " ".join(reason_value.split())[:240]
+    return {
+        "preferred_region_ids": region_values[:8],
+        "priority_request_ids": request_values[:8],
+        "reason": reason or "model plan",
+    }
+
+
 def _planner_node(state: DecisionState, model: object | None) -> dict[str, object]:
     """Run the first model stage only at the caller's bounded refresh trigger."""
     if model is None or not state.get("allow_model_call"):
@@ -123,17 +202,9 @@ def _planner_node(state: DecisionState, model: object | None) -> dict[str, objec
     )
     try:
         plan = _parse_object(_extract_text(model.invoke([("system", PLANNER_PROMPT), ("human", prompt)])))
-        regions = {str(item.get("region_id", "")) for item in candidates}
-        requests = {str(item.get("request_id", "")) for item in candidates if item.get("request_id")}
-        preferred_regions = [str(item) for item in plan.get("preferred_region_ids", []) if str(item) in regions][:8]
-        priority_requests = [str(item) for item in plan.get("priority_request_ids", []) if str(item) in requests][:8]
-        reason = " ".join(str(plan.get("reason", "model plan")).split())[:240]
+        normalized = _validated_model_plan(plan, state)
         return {
-            "model_plan": {
-                "preferred_region_ids": preferred_regions,
-                "priority_request_ids": priority_requests,
-                "reason": reason or "model plan",
-            },
+            "model_plan": normalized,
             "model_stage_trace": ["planner:ok"],
         }
     except Exception as exc:
@@ -145,6 +216,12 @@ def _selector_node(state: DecisionState, model: object | None) -> dict[str, obje
     candidates = state["compact_candidates"]
     if model is None or not state.get("allow_model_call") or not candidates:
         return {"model_selection": None, "model_stage_trace": state.get("model_stage_trace", [])}
+    # A selector response without a validated plan is not an independent action
+    # authority.  This preserves deterministic behavior when planning failed.
+    stage_trace = list(state.get("model_stage_trace", []))
+    if stage_trace and "planner:ok" not in stage_trace:
+        stage_trace.append("selector:skipped-planner")
+        return {"model_selection": None, "model_stage_trace": stage_trace}
     prompt = json.dumps(
         {
             "decision_sequence": state["snapshot"]["decision_sequence"],
@@ -163,10 +240,15 @@ def _selector_node(state: DecisionState, model: object | None) -> dict[str, obje
         separators=(",", ":"),
     )
     try:
-        response = model.invoke([("system", SYSTEM_PROMPT), ("human", prompt)])
+        selection = _parse_object(
+            _extract_text(model.invoke([("system", SYSTEM_PROMPT), ("human", prompt)]))
+        )
         trace = list(state.get("model_stage_trace", []))
+        if not _selection_matches_candidates(selection, candidates):
+            trace.append("selector:invalid")
+            return {"model_selection": None, "model_stage_trace": trace}
         trace.append("selector:ok")
-        return {"model_selection": _parse_object(_extract_text(response)), "model_stage_trace": trace}
+        return {"model_selection": selection, "model_stage_trace": trace}
     except Exception as exc:
         trace = list(state.get("model_stage_trace", []))
         trace.append(f"selector:error:{type(exc).__name__}")
@@ -176,6 +258,24 @@ def _selector_node(state: DecisionState, model: object | None) -> dict[str, obje
 def _model_node(state: DecisionState, model: object | None) -> dict[str, object]:
     """Compatibility alias for callers that exercised the old selector node."""
     return _selector_node(state, model)
+
+
+def _selection_matches_candidates(
+    selection: Mapping[str, object] | None,
+    candidates: list[Mapping[str, object]],
+) -> bool:
+    if selection is None or str(selection.get("action")) != "observe":
+        return False
+    key = (
+        str(selection.get("tile_id", "")),
+        str(selection.get("program", "")),
+        str(selection.get("request_id", "")),
+    )
+    return any(
+        (str(candidate.get("tile_id", "")), str(candidate.get("program", "")), str(candidate.get("request_id", "")))
+        == key
+        for candidate in candidates
+    )
 
 
 def _validated_model_decision(
@@ -205,6 +305,28 @@ def _validated_model_decision(
         "reason": reason or "model selection",
         "decision_source": "model",
     }
+
+
+def _night_distance(current: str, previous: str) -> int | None:
+    """Return elapsed observing nights for the standard or compact night IDs."""
+    if not current or not previous or current == previous:
+        return 0 if current == previous and current else None
+    if current.startswith("N") and previous.startswith("N"):
+        current_suffix, previous_suffix = current[1:], previous[1:]
+        if (
+            len(current_suffix) == len(previous_suffix) == 8
+            and current_suffix.isdigit()
+            and previous_suffix.isdigit()
+        ):
+            try:
+                current_date = datetime.strptime(current_suffix, "%Y%m%d").date()
+                previous_date = datetime.strptime(previous_suffix, "%Y%m%d").date()
+                return (current_date - previous_date).days
+            except ValueError:
+                return None
+        if current_suffix.isdigit() and previous_suffix.isdigit():
+            return int(current_suffix) - int(previous_suffix)
+    return None
 
 
 def _finalize(state: DecisionState) -> dict[str, object]:
@@ -337,6 +459,7 @@ class MinimalDecisionAgent:
             snapshot = self.detector.filter_fault_scope(snapshot)
         night_id = str((snapshot.get("cursor") or {}).get("night_id", ""))
         last_model_night = str(self.memory.get("last_model_night", ""))
+        night_distance = _night_distance(night_id, last_model_night)
         allow_model_call = bool(
             self.model is not None
             and mechanics
@@ -344,7 +467,10 @@ class MinimalDecisionAgent:
             and night_id
             and (
                 not last_model_night
-                or abs(int(night_id[1:]) - int(last_model_night[1:])) >= self.model_refresh_nights
+                or (
+                    night_distance is not None
+                    and night_distance >= self.model_refresh_nights
+                )
             )
         )
         result = self.graph.invoke(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -78,6 +79,11 @@ def main() -> int:
         "--out",
         str(output),
     ]
+    # The normal smoke mirrors the platform's scrubbed deterministic process.
+    # CI can opt into the installed participant dependency path without making
+    # local runs inherit a developer's environment or API credentials.
+    if os.environ.get("SMOKE_INHERIT_ENV") == "1":
+        command.append("--inherit-env")
     process = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=300)
     if process.returncode:
         raise RuntimeError(f"complete-project entry exited {process.returncode}: {process.stderr[-2000:]}")

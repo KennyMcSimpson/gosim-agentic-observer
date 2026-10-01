@@ -197,6 +197,32 @@ def check_two_stage_model_budget(initialize: dict, snapshot: dict) -> None:
     print("two-stage model smoke: planner+selector=2 calls per refresh; same-night repeat=0; refresh=2")
 
 
+def check_model_setting_fallbacks() -> None:
+    """Malformed optional tuning variables must preserve a runnable agent."""
+    sys.path.insert(0, str(AGENT_SOURCE))
+    from model_factory import ModelSettings
+
+    names = {
+        "LLM_TIMEOUT_SECONDS": "not-a-number",
+        "LLM_MAX_RETRIES": "-4",
+        "LLM_TOP_K_CANDIDATES": "0",
+        "LLM_REFRESH_NIGHTS": "0",
+    }
+    previous = {name: os.environ.get(name) for name in names}
+    try:
+        os.environ.update(names)
+        settings = ModelSettings.from_environment()
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+    if (settings.timeout_seconds, settings.max_retries, settings.top_k_candidates, settings.model_refresh_nights) != (4.0, 0, 12, 7):
+        raise AssertionError(f"malformed model settings did not use defaults: {settings}")
+    print("malformed model settings fallback: timeout=4; retries=0; top_k=12; refresh_nights=7")
+
+
 def main() -> int:
     manifest = json.loads((ROOT / "observer.project.json").read_text(encoding="utf-8"))
     if manifest.get("protocol") != "jsonl-v2":
@@ -273,6 +299,7 @@ def main() -> int:
 
     check_model_fallback(initialize, snapshot)
     check_two_stage_model_budget(initialize, snapshot)
+    check_model_setting_fallbacks()
     print("protocol smoke passed; fixture source=scenarios/dev-reference via ChallengeWorkflow public API")
     return 0
 

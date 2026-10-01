@@ -10,6 +10,7 @@ precedence for every OpenAI-compatible provider; the provider-specific variables
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,6 +44,22 @@ PLATFORM_MODEL_PLACEHOLDER = "team-model"
 
 class ModelConfigurationError(ValueError):
     """Raised when an optional model provider is only partially configured."""
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        value = float(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return value if math.isfinite(value) and value > 0 else default
+
+
+def _env_int(name: str, default: int, minimum: int = 0) -> int:
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return value if value >= minimum else default
 
 
 @dataclass(frozen=True)
@@ -99,10 +116,10 @@ class ModelSettings:
             base_url=base_url,
             api_key=api_key,
             api_mode=api_mode,
-            timeout_seconds=float(os.environ.get("LLM_TIMEOUT_SECONDS", "4")),
-            max_retries=int(os.environ.get("LLM_MAX_RETRIES", "0")),
-            top_k_candidates=int(os.environ.get("LLM_TOP_K_CANDIDATES", "12")),
-            model_refresh_nights=int(os.environ.get("LLM_REFRESH_NIGHTS", "7")),
+            timeout_seconds=_env_float("LLM_TIMEOUT_SECONDS", 4.0),
+            max_retries=_env_int("LLM_MAX_RETRIES", 0),
+            top_k_candidates=_env_int("LLM_TOP_K_CANDIDATES", 12, minimum=1),
+            model_refresh_nights=_env_int("LLM_REFRESH_NIGHTS", 7, minimum=1),
         )
 
     @property
