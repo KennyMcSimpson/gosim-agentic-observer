@@ -35,6 +35,8 @@ jobs:
         run: python scripts/build.py
       - name: Run declared complete-project entry
         run: python scripts/smoke_project.py
+      - name: Run participant JSONL v2 contract smoke
+        run: python scripts/smoke_protocol.py
       - name: Run both public scenarios inside packaged app
         run: python scripts/smoke_release.py
       - uses: actions/upload-artifact@v4
@@ -64,7 +66,7 @@ jobs:
           path: release-assets
       - name: Write release checksums
         shell: bash
-        run: cd release-assets && sha256sum GOSIMPractice-*.zip GOSIMPractice.exe > SHA256SUMS.txt
+        run: cd release-assets && sha256sum GOSIMPractice-*.zip GOSIMPractice.exe > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt
       - name: Publish verified packages
         env:
           GH_TOKEN: ${{ github.token }}

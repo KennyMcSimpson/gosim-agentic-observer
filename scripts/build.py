@@ -28,6 +28,12 @@ def _ignore_secret_files(_directory: str, names: list[str]) -> set[str]:
             or lowered.endswith((".env", ".pem", ".key"))
             or "secret" in lowered
             or "credential" in lowered
+            or "password" in lowered
+            or "passwd" in lowered
+            or "api_key" in lowered
+            or "apikey" in lowered
+            or "access_token" in lowered
+            or "refresh_token" in lowered
         ):
             ignored.add(name)
     return ignored

@@ -5,6 +5,12 @@ __pycache__/
 *.env
 *secret*
 *credential*
+*password*
+*passwd*
+*api_key*
+*apikey*
+*access_token*
+*refresh_token*
 *.pem
 *.key
 runs/
