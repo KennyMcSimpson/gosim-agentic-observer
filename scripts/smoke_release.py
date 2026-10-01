@@ -12,7 +12,36 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = {"dev-fortnight": 6512.721299, "dev-reference": 12287.478365}
 
 
+def validate_submission_manifest() -> None:
+    manifest_path = ROOT / "observer.project.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != "observer-project-v1":
+        raise AssertionError("root observer.project.json has the wrong schema")
+    if manifest.get("protocol") != "jsonl-v2":
+        raise AssertionError("root observer.project.json must declare jsonl-v2")
+    if manifest.get("run") != ["python3", "-u", "agent/minimal_agent.py"]:
+        raise AssertionError("root observer.project.json must run the bundled participant agent")
+    if not isinstance(manifest.get("build"), list):
+        raise AssertionError("root observer.project.json build must be a JSON array")
+    environment = manifest.get("environment")
+    if not isinstance(environment, dict) or environment.get("PYTHONPATH") != ".deps":
+        raise AssertionError("root observer.project.json must expose .deps on PYTHONPATH")
+    if environment.get("MODEL_PROVIDER") != "openai":
+        raise AssertionError("root observer.project.json must enable the platform model proxy")
+    # A developer may keep a local agent/.env for source runs.  The build script
+    # stages the actual packaged input under build/agent-bundle; inspect that
+    # directory so this smoke test verifies the artifact boundary rather than
+    # rejecting a deliberately untracked local configuration.
+    staged = ROOT / "build" / "agent-bundle"
+    if staged.exists():
+        template_names = {".env.example", ".env.sample", ".env.template"}
+        if any(path.name == ".env" or (path.name.startswith(".env.") and path.name not in template_names)
+               for path in staged.rglob("*")):
+            raise AssertionError("local agent environment files leaked into the staged build input")
+
+
 def main() -> int:
+    validate_submission_manifest()
     if sys.platform == "win32":
         app = ROOT / "dist" / "GOSIMPractice.exe"
     elif sys.platform == "darwin":

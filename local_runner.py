@@ -53,7 +53,13 @@ from challenge.scoring_core import score_files  # noqa: E402
 
 ENTRY_CANDIDATES = ("minimal_agent.py", "agent.py", "main.py")
 SAFE_ENV_KEYS = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
-PROTECTED_KEYS = ("PATH", "HOME", "TMPDIR", "LD_PRELOAD", "PYTHONPATH", "PYTHONSTARTUP")
+# Runner-owned process and protocol settings must not be overridden by a
+# participant .env. Model/provider settings remain intentionally configurable.
+PROTECTED_KEYS = (
+    "PATH", "HOME", "TMPDIR", "TEMP", "TMP", "SYSTEMROOT",
+    "LD_PRELOAD", "PYTHONPATH", "PYTHONSTARTUP",
+    "PARTICIPANT_PROTOCOL", "SAC_SCENARIO", "SAC_WALLCLOCK_SECONDS", "SAC_LOCAL_RUNNER",
+)
 
 
 def load_dotenv(path: Path) -> dict[str, str]:

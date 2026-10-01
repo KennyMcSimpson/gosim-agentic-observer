@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -20,11 +21,34 @@ def pyinstaller(*args: str) -> None:
     subprocess.run([sys.executable, "-m", "PyInstaller", *args], cwd=ROOT, check=True)
 
 
+def prepare_agent_bundle() -> Path:
+    """Stage the bundled agent without local credentials or interpreter caches."""
+    staged = WORK / "agent-bundle"
+    if staged.exists():
+        shutil.rmtree(staged)
+    shutil.copytree(
+        ROOT / "agent",
+        staged,
+        ignore=shutil.ignore_patterns(".env", ".env.*", "__pycache__", "*.pyc", "*.pyo"),
+    )
+    return staged
+
+
 def main() -> int:
     DIST.mkdir(exist_ok=True)
+    staged_agent = prepare_agent_bundle()
     pyinstaller(
         "--noconfirm", "--clean", "--onefile", "--console",
         "--name", "PracticeAgentHost",
+        "--hidden-import", "ssl",
+        "--hidden-import", "sqlite3",
+        "--hidden-import", "asyncio",
+        "--hidden-import", "multiprocessing",
+        "--hidden-import", "subprocess",
+        "--hidden-import", "logging",
+        "--hidden-import", "urllib.request",
+        "--hidden-import", "http.client",
+        "--hidden-import", "email",
         "--distpath", str(DIST / "helper"),
         "--workpath", str(WORK / "helper"),
         "--specpath", str(WORK / "spec"),
@@ -38,7 +62,7 @@ def main() -> int:
         "--name", "GOSIMPractice",
         "--hidden-import", "challenge.replay",
         "--add-data", f"{ROOT / 'scenarios'}:scenarios",
-        "--add-data", f"{ROOT / 'agent'}:agent",
+        "--add-data", f"{staged_agent}:agent",
         "--add-data", f"{ROOT / 'challenge' / 'templates'}:challenge/templates",
         "--add-binary", f"{helper}:.",
         "--distpath", str(DIST),

@@ -11,7 +11,19 @@
 3. 勾选一个或两个公开场景，选输出目录，点击“开始本地练习”。界面展示各场景分数和状态；“打开结果”可查看 score_report.json、decisions.csv、agent.log 和 decision_replay.html。
 4. 再次点击运行会建立新的结果目录，不覆盖上一次。
 
-内置 Agent Host 运行标准库 Python Agent。若自己的 Agent 依赖额外 Python 包，在界面选择安装了这些依赖的 Python 3.9+ 解释器；此时它替代内置 Agent Host，仅用于运行所选 Agent。Agent 文件夹的 .env 如存在，仍由本地 runner 读取；不要把密钥放入本仓库。
+## 作为完整项目提交
+
+仓库根目录包含赛事要求的 `observer.project.json`，可直接把本仓库的公开 GitHub URL
+提交到官网「参赛」页的完整项目练习。平台会从仓库根目录运行
+`agent/minimal_agent.py`，而不是启动桌面 GUI；根 manifest 按官方示例把可选模型依赖安装到 `.deps`，使用 JSONL v2
+协议和确定性回退。也可以按官方入门包的规则，把 `agent/` 目录用 `pack_agent.py`
+打成不超过平台限制的 ZIP（`pack_agent.py` 随官方入门包提供）。
+
+当前内置策略用于核对协议、评分器和公开场景；当前代码只有一个已实现的模型决策环节，
+尚不能声称满足正式评奖所需的至少两个大模型驱动环节。完整项目评测前应在「参赛」页配置自己的模型 API，并保留始终可用的
+确定性回退；不要把 `.env` 或任何密钥放进仓库、ZIP 或桌面包。
+
+内置 Agent Host 运行随包验证过的确定性 Agent。若自己的 Agent 依赖额外 Python 包或未随包验证的标准库模块，在界面选择安装了这些依赖的 Python 3.9+ 解释器；此时它替代内置 Agent Host，仅用于运行所选 Agent。只运行自己信任的脚本；应用不会为自选 Agent 提供操作系统级沙箱。Agent 文件夹的 .env 如存在，仍由本地 runner 读取；不要把密钥放入本仓库。
 
 ## 从源码运行与构建
 

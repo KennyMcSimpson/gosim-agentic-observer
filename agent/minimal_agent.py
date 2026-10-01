@@ -60,7 +60,12 @@ def run(stdin=sys.stdin, stdout=sys.stdout) -> None:
             raise RuntimeError("decision_request received before initialize")
         decision = agent.decide(payload)
         decisions += 1
-        response = decision_response(int(message["decision_sequence"]), decision, decision.get("reports"))
+        response = decision_response(
+            int(message["decision_sequence"]),
+            decision,
+            decision.get("reports"),
+            protocol_version=str(message.get("protocol_version", "participant-agent-protocol-v2")),
+        )
         print(
             json.dumps(response, ensure_ascii=False, separators=(",", ":")),
             file=stdout,
