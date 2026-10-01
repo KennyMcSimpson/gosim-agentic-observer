@@ -6,7 +6,7 @@
 
 ## 使用
 
-1. Windows：直接下载 [GOSIMPractice.exe](https://github.com/KennyMcSimpson/gosim-agentic-observer/releases/download/v0.1.0/GOSIMPractice.exe)，保存后双击运行。macOS：从 [v0.1.0 Release](https://github.com/KennyMcSimpson/gosim-agentic-observer/releases/tag/v0.1.0) 下载与你的处理器对应的 ZIP，解压后打开 GOSIMPractice.app。
+1. Windows：直接下载 [GOSIMPractice.exe](https://github.com/KennyMcSimpson/gosim-agentic-observer/releases/latest/download/GOSIMPractice.exe)，保存后双击运行。macOS：从 [latest Release](https://github.com/KennyMcSimpson/gosim-agentic-observer/releases/latest) 下载与你的处理器对应的 ZIP，解压后打开 GOSIMPractice.app；发布页同时提供 `SHA256SUMS.txt`。
 2. 默认使用随应用附带的官方最简确定性 Agent。也可以选择你自己的 agent.py、minimal_agent.py、main.py 或其所在文件夹。
 3. 勾选一个或两个公开场景，选输出目录，点击“开始本地练习”。界面展示各场景分数和状态；“打开结果”可查看 score_report.json、decisions.csv、agent.log 和 decision_replay.html。
 4. 再次点击运行会建立新的结果目录，不覆盖上一次。

@@ -2,6 +2,11 @@ __pycache__/
 *.py[cod]
 .env
 .env.*
+*.env
+*secret*
+*credential*
+*.pem
+*.key
 runs/
 build/
 dist/

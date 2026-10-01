@@ -49,7 +49,6 @@ def decision_response(
     sequence: int,
     decision: Mapping[str, object],
     reports: Sequence[Mapping[str, object]] | None = None,
-    protocol_version: str = PROTOCOL_VERSION,
 ) -> dict[str, object]:
     """Wrap one validated local decision in the public response envelope.
 
@@ -57,10 +56,8 @@ def decision_response(
     {"kind": "NOVA" | "Reddening", "tile_id": ...} entries riding on this
     decision; reports never consume slot time.
     """
-    if protocol_version not in ACCEPTED_PROTOCOL_VERSIONS:
-        raise ProtocolError("unsupported response protocol_version")
     envelope = {
-        "protocol_version": protocol_version,
+        "protocol_version": PROTOCOL_VERSION,
         "message_type": "decision_response",
         "decision_sequence": int(sequence),
         "action": decision["action"],

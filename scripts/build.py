@@ -17,6 +17,22 @@ IS_WINDOWS = os.name == "nt"
 HOST = "PracticeAgentHost.exe" if IS_WINDOWS else "PracticeAgentHost"
 
 
+def _ignore_secret_files(_directory: str, names: list[str]) -> set[str]:
+    """Keep common local credentials out of the frozen participant bundle."""
+    ignored = set()
+    for name in names:
+        lowered = name.lower()
+        if (
+            lowered == ".env"
+            or lowered.startswith(".env.")
+            or lowered.endswith((".env", ".pem", ".key"))
+            or "secret" in lowered
+            or "credential" in lowered
+        ):
+            ignored.add(name)
+    return ignored
+
+
 def pyinstaller(*args: str) -> None:
     subprocess.run([sys.executable, "-m", "PyInstaller", *args], cwd=ROOT, check=True)
 
@@ -29,7 +45,8 @@ def prepare_agent_bundle() -> Path:
     shutil.copytree(
         ROOT / "agent",
         staged,
-        ignore=shutil.ignore_patterns(".env", ".env.*", "__pycache__", "*.pyc", "*.pyo"),
+        ignore=lambda directory, names: _ignore_secret_files(directory, names)
+        | {name for name in names if name == "__pycache__" or name.endswith((".pyc", ".pyo"))},
     )
     return staged
 

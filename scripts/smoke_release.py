@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = {"dev-fortnight": 6512.721299, "dev-reference": 12287.478365}
+SENSITIVE_NAME = re.compile(r"(?:^\.env(?:\.|$)|\.env$|secret|credential|\.(?:pem|key)$)", re.IGNORECASE)
 
 
 def validate_submission_manifest() -> None:
@@ -32,9 +34,7 @@ def validate_submission_manifest() -> None:
     # rejecting a deliberately untracked local configuration.
     staged = ROOT / "build" / "agent-bundle"
     if staged.exists():
-        template_names = {".env.example", ".env.sample", ".env.template"}
-        if any(path.name == ".env" or (path.name.startswith(".env.") and path.name not in template_names)
-               for path in staged.rglob("*")):
+        if any(SENSITIVE_NAME.search(path.name) for path in staged.rglob("*")):
             raise AssertionError("local agent environment files leaked into the staged build input")
 
 
