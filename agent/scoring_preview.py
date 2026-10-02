@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Mapping, Sequence
 
@@ -32,11 +32,6 @@ class CandidatePreview:
     estimated_total_gain: float
     estimated_gain_per_second: float
     estimate_semantics: str
-    altitude_deg: float = 0.0
-    airmass: float = 0.0
-    target_class_counts: dict[str, int] = field(default_factory=dict)
-    estimated_overhead_seconds: float = 0.0
-    planning_gain_per_second: float = 0.0
 
     def public_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -139,40 +134,6 @@ def _known_window_can_finish(
     return start + timedelta(seconds=exposure) <= end
 
 
-def _planning_overhead_seconds(
-    candidate: Mapping[str, object], scoring_contract: Mapping[str, object]
-) -> float:
-    contract = scoring_contract.get("planning_contract", {})
-    if not isinstance(contract, Mapping):
-        contract = {}
-    def number(value: object, default: float) -> float:
-        try:
-            result = float(value)
-        except (TypeError, ValueError):
-            return default
-        return result if math.isfinite(result) else default
-    pointing = max(0.0, number(contract.get("pointing_overhead_seconds"), 30.0))
-    readout = max(0.0, number(contract.get("readout_overhead_seconds"), 15.0))
-    slew_rate = max(0.0, number(contract.get("slew_seconds_per_degree"), 0.0))
-    slew_distance = max(0.0, number(candidate.get("slew_distance_deg"), 0.0))
-    return pointing + readout + slew_rate * slew_distance
-
-
-def _target_class_counts(candidate: Mapping[str, object]) -> dict[str, int]:
-    value = candidate.get("target_class_counts", {})
-    if not isinstance(value, Mapping):
-        return {}
-    result = {}
-    for key, raw in value.items():
-        try:
-            count = int(raw)
-        except (TypeError, ValueError):
-            continue
-        if count >= 0:
-            result[str(key)] = count
-    return result
-
-
 def preview_actions(
     snapshot: Mapping[str, object],
     scoring_contract: Mapping[str, object],
@@ -244,9 +205,6 @@ def preview_actions(
         exposure = int(candidate["nominal_exptime_seconds"])
         if exposure <= 0:
             raise ValueError("nominal exposure must be positive")
-        altitude = _number(candidate.get("geometry", {}).get("altitude_deg"), "altitude")
-        airmass_value = _number(candidate.get("geometry", {}).get("airmass"), "airmass")
-        overhead = _planning_overhead_seconds(candidate, scoring_contract)
         for request_id, request_value in action_options:
             total = science + terminal_avoidance + request_value
             result.append(
@@ -272,16 +230,7 @@ def preview_actions(
                         "repeat observations show the marginal gain over the caller-supplied "
                         "banked best (0 while bests are untracked); "
                         "request value is apportioned over remaining required tiles; "
-                        "authoritative replay may differ after future weather changes; "
-                        "planning_gain_per_second additionally includes a transparent "
-                        "pointing/readout overhead estimate"
-                    ),
-                    altitude_deg=round(altitude, 6),
-                    airmass=round(airmass_value, 6),
-                    target_class_counts=_target_class_counts(candidate),
-                    estimated_overhead_seconds=round(overhead, 6),
-                    planning_gain_per_second=round(
-                        total / (exposure + overhead), 9
+                        "authoritative replay may differ after future weather changes"
                     ),
                 )
             )
@@ -295,3 +244,4 @@ def preview_actions(
         )
     )
     return result
+

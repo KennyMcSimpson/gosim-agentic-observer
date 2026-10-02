@@ -25,14 +25,27 @@ you may fill with anything you want to remember between decisions (nothing else 
 See the repository `README.md` for the complete-project entry, protocol, and local practice steps; the official Docs/Rules pages define the current submission flow.
 """
 
-from lecture_scheduler import choose_action as choose_lecture_action
-
 
 def choose_action(candidates, snapshot, memory):
-    """Use the lecture-informed deterministic selector over legal candidates.
+    """Return the candidate dict to observe (you may set candidate["reason"]), or None to wait this slot."""
+    if not candidates:
+        return None  # nothing can be completed right now: waiting costs only 0.001 per second
 
-    The selector never invents a tile or bypasses the scorer's legality
-    checks; it only changes the order in which the current legal candidates
-    are considered.
-    """
-    return choose_lecture_action(candidates, snapshot, memory)
+    # --- Example ideas (uncomment / edit): ---------------------------------------------------------
+    # 1. Never let a REQUIRED tile slip: prefer them whenever one is available.
+    # required = [c for c in candidates if c["scheduling_class"] == "REQUIRED"]
+    # if required:
+    #     return required[0]
+    #
+    # 2. Serve observation requests first (they pay 140 per tile and cost 190 when missed).
+    # for c in candidates:
+    #     if c["request_id"]:
+    #         return c
+    #
+    # 3. Skip poor conditions: wait unless the best candidate is at least BRIGHT quality.
+    # if candidates[0]["combined_quality"] < 0.40:
+    #     return None
+    #
+    # 4. Remember what you did: memory.setdefault("observed", []).append(candidates[0]["tile_id"])
+
+    return candidates[0]  # default: the highest estimated gain per second

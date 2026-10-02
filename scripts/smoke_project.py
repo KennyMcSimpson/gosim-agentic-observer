@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_TOTAL = 6526.194418
+EXPECTED_TOTAL = 6512.721299
 
 
 def read_manifest(path: Path) -> dict:
