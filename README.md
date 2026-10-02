@@ -1,6 +1,6 @@
 # GOSIM 本地完整项目练习器
 
-最新迁移记录：[2026-10-02 讲座与 v4 赛题迁移记录](docs/LECTURE_2026-10-02.md)。当前应用仍面向公开 v3 练习场景；请不要把它当作 v4 光纤任务卡或正式/隐藏赛兼容性证明。
+最新迁移记录：[2026-10-02 讲座与 v4 赛题迁移记录](docs/LECTURE_2026-10-02.md)。桌面应用仍面向公开 v3 练习场景；仓库另含一个与 v3 练习线隔离的 v4 本地 harness，用于协议、几何、评分和工作流的本地回归。两者都不能作为正式或隐藏赛成绩证明。
 
 一个只在本机运行的桌面练习应用。它让你选择自己的 Python Agent，按官方公开的完整项目练习流程，在 dev-fortnight 和 dev-reference 场景上逐轮运行，每场景上限 18000 秒，并用随入门包提供的评分器计算结果。每次运行都会另存完整轨迹、评分报告、Agent 日志和回放页面；可以反复运行。
 
@@ -12,6 +12,23 @@
 2. 默认使用随应用附带的官方最简确定性 Agent。也可以选择你自己的 agent.py、minimal_agent.py、main.py 或其所在文件夹。
 3. 勾选一个或两个公开场景，选输出目录，点击“开始本地练习”。界面展示各场景分数和状态；“打开结果”可查看 score_report.json、decisions.csv、agent.log 和 decision_replay.html。
 4. 再次点击运行会建立新的结果目录，不覆盖上一次。
+
+## v4 本地 harness
+
+`challenge/v4_workflow.py` 是独立的 JSONL v4 本地 runner，读取一个本地 v4 card 目录并启动一个参加者 Agent。当前入口不经过桌面 GUI，也不由根目录的 `observer.project.json` 调用。它按 `participant-agent-protocol-v4` 处理 `initialize`、`decision_request` 和 `finish`，要求 Agent 对每个请求返回相同 `decision_sequence` 的 `decision_response`；动作是 `observe`、`wait`、`report` 和 `finish`。`observe` 同时携带指向、逐根光纤目标分配、60--3600 秒曝光和 `DARK`/`BRIGHT`/`BACKUP` 程序。
+
+在仓库根目录运行本地 demo fixture：
+
+```powershell
+$python = if (Test-Path .venv\Scripts\python.exe) { '.venv\Scripts\python.exe' } else { 'python' }
+& $python -c "from pathlib import Path; import json; from challenge.v4_workflow import run_v4; result = run_v4(Path('scenarios/v4-demo'), Path('agent/v4_minimal_agent.py'), Path('run_output/v4-smoke'), wallclock_seconds=10); print(json.dumps(result, indent=2))"
+```
+
+运行结果写入 `run_output/v4-smoke/`，包括 `initial_publication.json`、`decisions.jsonl`、`workflow_result.json`、`score_report.json` 和 `agent.log`。本地 runner 默认的全局 wall-clock 是 900 秒；上面的命令显式使用 10 秒，只适合快速协议回归。
+
+根目录 `observer.project.json` 继续使用 `observer-project-v1` / `jsonl-v2`，入口仍是 `agent/minimal_agent.py`，对应现有公开 v3 完整项目练习。v4 harness 不会把根项目切换到 `jsonl-v4`，也不改变正式提交协议；正式迁移前仍需以官网当前 Rules、Resources、v4 starter/card 和参赛页实际检查结果为准。
+
+`scenarios/v4-demo/` 是本仓库本地构造的 v4 契约 fixture，包含用于回归的 public/truth 文件和一个虚拟站点配置。它用来检查 `observe`、`wait`、`report`、`finish`、光纤 cell、30 度最低高度角、曝光边界和评分流程；它不是官方正式卡，也不代表练习榜、正式赛或隐藏赛成绩。
 
 ## 作为完整项目提交
 
@@ -48,3 +65,4 @@
 - 本应用调用入门包中的 local_runner.py、challenge/ 评分与仿真模块、最简 Agent，并附公开场景数据；未引入本地 local-lab/、H0/H1 研究工具或参赛提交逻辑。
 - dev-fortnight 从官网公开场景接口获取；dev-reference 随入门包提供。场景文件依公开 manifest 校验。上游资料与本地改动见 [VENDOR_PROVENANCE.md](VENDOR_PROVENANCE.md)。
 - 本地分数只说明当前打包的公开数据和评分器输出，不能代表正式赛的隐藏场景成绩。以[赛事当前规则](https://create.gosim.org/survey26/platform/rules)与主办方公告为准。
+- v4 契约核对来源：[Rules](https://create.gosim.org/survey26/platform/rules)、[Resources](https://create.gosim.org/survey26/platform/resources) 和官方 [`skill-v4.md`](https://create.gosim.org/survey26/platform/skill-v4.md)；来源、fixture provenance 和本地数据边界见 [VENDOR_PROVENANCE.md](VENDOR_PROVENANCE.md)。
