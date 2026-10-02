@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED = {"dev-fortnight": 6512.721299, "dev-reference": 12287.478365}
+EXPECTED = {"dev-fortnight": 6526.194418, "dev-reference": 12298.666905}
 SENSITIVE_NAME = re.compile(
     r"(?:^\.env(?:\.|$)|\.env$|secret|credential|password|passwd|api[_-]?key|access[_-]?token|refresh[_-]?token|\.(?:pem|key)$)",
     re.IGNORECASE,

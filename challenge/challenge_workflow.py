@@ -73,6 +73,12 @@ class ChallengeWorkflow:
         self.target_catalog = read_exact_csv(
             root / "outputs" / "reference" / "targets.csv", TARGET_COLUMNS
         )
+        self.target_class_counts: dict[str, dict[str, int]] = {}
+        for row in self.target_catalog:
+            tile_id = str(row["tile_id"])
+            target_class = str(row["target_class"])
+            counts = self.target_class_counts.setdefault(tile_id, {})
+            counts[target_class] = counts.get(target_class, 0) + 1
         self.clock = clock
         self.mechanics = self.scorer.mechanics
         self.committed: list[Decision] = []
@@ -120,6 +126,19 @@ class ChallengeWorkflow:
                     "score_interface"
                 ],
                 "lunar_model": self.scorer.geometry.tile_config["lunar_model"],
+                "planning_contract": {
+                    "policy_version": "lecture-aware-v1",
+                    "pointing_overhead_seconds": 30.0,
+                    "readout_overhead_seconds": 15.0,
+                    "slew_seconds_per_degree": 0.0,
+                    "minimum_altitude_deg": float(
+                        self.scorer.geometry.tile_config["geometry"]["minimum_altitude_deg"]
+                    ),
+                    "note": (
+                        "Planning-only estimates inspired by the 2026-10-02 lecture; "
+                        "these values do not change official score replay."
+                    ),
+                },
                 "preview_semantics": (
                     "Current-snapshot estimates use the official public formula but "
                     "cannot know unreleased future slot weather. Authoritative scores "
@@ -231,6 +250,9 @@ class ChallengeWorkflow:
             candidates.append({"tile_id": tile_id, "region_id": row["region_id"], "scheduling_class": row["scheduling_class"],
                                "nominal_exptime_seconds": row["nominal_exptime_seconds"],
                                "tile_science_value": round(self.scorer.tile_values[tile_id], 6),
+                               "target_class_counts": dict(
+                                   sorted(self.target_class_counts.get(tile_id, {}).items())
+                               ),
                                "window_start_utc": row["window_start_utc"], "window_end_utc": row["window_end_utc"],
                                "geometry": geometry, "effective_weather": conditions,
                                "already_completed": tile_id in self.scorer.completed_tiles})

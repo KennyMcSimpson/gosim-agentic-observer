@@ -41,11 +41,17 @@ def _compact(preview: CandidatePreview, rank: int) -> dict[str, object]:
         "scheduling_class": preview.scheduling_class,
         "nominal_exptime_seconds": preview.nominal_exptime_seconds,
         "combined_quality": preview.combined_quality,
+        "quality_band": preview.quality_band,
+        "altitude_deg": preview.altitude_deg,
+        "airmass": preview.airmass,
+        "target_class_counts": preview.target_class_counts,
         "estimated_science_score": preview.estimated_science_score,
         "terminal_penalty_avoidance": preview.terminal_penalty_avoidance,
         "request_policy_value": preview.request_policy_value,
         "estimated_total_gain": preview.estimated_total_gain,
         "estimated_gain_per_second": preview.estimated_gain_per_second,
+        "estimated_overhead_seconds": preview.estimated_overhead_seconds,
+        "planning_gain_per_second": preview.planning_gain_per_second,
     }
 
 
