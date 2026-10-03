@@ -22,7 +22,6 @@ a bug in the strategy must never end the run as agent_error or hang the process.
 from __future__ import annotations
 
 import sys
-import os
 
 if sys.version_info < (3, 9):
     sys.stderr.write("agent: Python 3.9 or newer is required\n")
@@ -36,12 +35,6 @@ from agent_core.validation import ActionRejected, fallback_action, validate_acti
 
 
 def main() -> int:
-    # The platform injects a model credential, while a local deterministic run
-    # may intentionally have none. Keep the upstream planner alive in that
-    # case and make its bounded LLM calls fail fast into its rule path.
-    if not (os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("KIMI_API_KEY", "").strip()):
-        os.environ["OPENAI_API_KEY"] = "local-no-api"
-        os.environ.setdefault("OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
     try:
         require_api_key()
     except MissingAPIKeyError as exc:

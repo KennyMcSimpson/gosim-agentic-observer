@@ -1,0 +1,165 @@
+{
+  "schema_version": "frozen-calibration-verification-v1",
+  "verified_date": "2026-10-04",
+  "model_mode": "deterministic",
+  "official_truth": false,
+  "cards": {
+    "alpha": {
+      "calibration_id": "alpha-calibration-v1",
+      "target": 3243.83,
+      "total": 3336.681494,
+      "residual": 92.851494,
+      "budget_seconds": 900,
+      "termination": "survey_complete",
+      "card_input_sha256": "f354dec27873e4d07bcea2eb08f7b4b505e98d09db9188807420e6127d565c6d",
+      "agent_sha256": {
+        "agent_core/__init__.py": "86f2aa3636a25e64fde75376458dbe0fa1efcbee58d18ee5cfc93322ccc45330",
+        "agent_core/geometry.py": "b74bf06524123dfda2157f03f2459766d232e811de9328a26e0eedd30627a1fd",
+        "agent_core/llm_client.py": "d03e485305fe78285afafa82b8dd6bdc0dbca4ea5b53b69cde4f22bc812048f7",
+        "agent_core/memory.py": "50b85b4a71e0450b54eb9487d40da11fddc8c41199612fba3810ddddf0e8bbfa",
+        "agent_core/planner.py": "a7447798f19d0dbc82ef39cc6d523826d17bd91278a6e1aca0b85aa0674377ad",
+        "agent_core/protocol.py": "470c26cae91e2d40fd629d31d024338e32a2ca645cec669cace2433f7e76edcf",
+        "agent_core/scoring.py": "61ba99f7a074e46a427be2350b47c1daaa5619398bee881b25a5940d02092d78",
+        "agent_core/state.py": "bdb2e3c0fd03fb8de8c541c8ca2713a5b25521f2d7d1ba9137b5ce0db414b7e6",
+        "agent_core/validation.py": "688e2b67fda2e16cb80e04005b69808ae2df82d21822edb8385da48a788f017c",
+        "baseline_agent.py": "28b94e6098be6450267fe6e0aef90d0e8cff0e17ba8490a11d418fc1e83c2305"
+      },
+      "engine_manifest_sha256": "492f625122773a614a13d6834f14a1c3fc549767970c8e065769bc75a66ff2bd",
+      "counts": {
+        "decisions": 1150,
+        "invalidated_observations": 0,
+        "observation_requests_completed": 0,
+        "observation_requests_issued": 6,
+        "observations": 6785,
+        "observe_actions": 525,
+        "required_missing": 18,
+        "targets_observed": 5401
+      },
+      "components": {
+        "observation_request_reward": 0.0,
+        "report_settlement": 0.0,
+        "required_penalty": -900.0,
+        "sum_best_scores": 4241.88106,
+        "uniformity_penalty": -5.199566
+      }
+    },
+    "beta": {
+      "calibration_id": "beta-calibration-v1",
+      "target": 4558.45,
+      "total": 4586.38559,
+      "residual": 27.93559,
+      "budget_seconds": 900,
+      "termination": "survey_complete",
+      "card_input_sha256": "ca6a23e3a9c9981793fb5347a37e58994bb67ef4d3a0305634cddeefcc83f5f5",
+      "agent_sha256": {
+        "agent_core/__init__.py": "86f2aa3636a25e64fde75376458dbe0fa1efcbee58d18ee5cfc93322ccc45330",
+        "agent_core/geometry.py": "b74bf06524123dfda2157f03f2459766d232e811de9328a26e0eedd30627a1fd",
+        "agent_core/llm_client.py": "d03e485305fe78285afafa82b8dd6bdc0dbca4ea5b53b69cde4f22bc812048f7",
+        "agent_core/memory.py": "50b85b4a71e0450b54eb9487d40da11fddc8c41199612fba3810ddddf0e8bbfa",
+        "agent_core/planner.py": "a7447798f19d0dbc82ef39cc6d523826d17bd91278a6e1aca0b85aa0674377ad",
+        "agent_core/protocol.py": "470c26cae91e2d40fd629d31d024338e32a2ca645cec669cace2433f7e76edcf",
+        "agent_core/scoring.py": "61ba99f7a074e46a427be2350b47c1daaa5619398bee881b25a5940d02092d78",
+        "agent_core/state.py": "bdb2e3c0fd03fb8de8c541c8ca2713a5b25521f2d7d1ba9137b5ce0db414b7e6",
+        "agent_core/validation.py": "688e2b67fda2e16cb80e04005b69808ae2df82d21822edb8385da48a788f017c",
+        "baseline_agent.py": "28b94e6098be6450267fe6e0aef90d0e8cff0e17ba8490a11d418fc1e83c2305"
+      },
+      "engine_manifest_sha256": "492f625122773a614a13d6834f14a1c3fc549767970c8e065769bc75a66ff2bd",
+      "counts": {
+        "decisions": 1238,
+        "invalidated_observations": 0,
+        "observation_requests_completed": 0,
+        "observation_requests_issued": 8,
+        "observations": 7748,
+        "observe_actions": 594,
+        "required_missing": 8,
+        "targets_observed": 5965
+      },
+      "components": {
+        "observation_request_reward": 0.0,
+        "report_settlement": 0.0,
+        "required_penalty": -400.0,
+        "sum_best_scores": 4990.164443,
+        "uniformity_penalty": -3.778852
+      }
+    },
+    "gamma": {
+      "calibration_id": "gamma-calibration-v1",
+      "target": 3893.13,
+      "total": 3817.940628,
+      "residual": -75.189372,
+      "budget_seconds": 900,
+      "termination": "survey_complete",
+      "card_input_sha256": "d1d374334438a6637fb0e711aacb412f15f32bef49c73cbf032fbb6e54ce4db7",
+      "agent_sha256": {
+        "agent_core/__init__.py": "86f2aa3636a25e64fde75376458dbe0fa1efcbee58d18ee5cfc93322ccc45330",
+        "agent_core/geometry.py": "b74bf06524123dfda2157f03f2459766d232e811de9328a26e0eedd30627a1fd",
+        "agent_core/llm_client.py": "d03e485305fe78285afafa82b8dd6bdc0dbca4ea5b53b69cde4f22bc812048f7",
+        "agent_core/memory.py": "50b85b4a71e0450b54eb9487d40da11fddc8c41199612fba3810ddddf0e8bbfa",
+        "agent_core/planner.py": "a7447798f19d0dbc82ef39cc6d523826d17bd91278a6e1aca0b85aa0674377ad",
+        "agent_core/protocol.py": "470c26cae91e2d40fd629d31d024338e32a2ca645cec669cace2433f7e76edcf",
+        "agent_core/scoring.py": "61ba99f7a074e46a427be2350b47c1daaa5619398bee881b25a5940d02092d78",
+        "agent_core/state.py": "bdb2e3c0fd03fb8de8c541c8ca2713a5b25521f2d7d1ba9137b5ce0db414b7e6",
+        "agent_core/validation.py": "688e2b67fda2e16cb80e04005b69808ae2df82d21822edb8385da48a788f017c",
+        "baseline_agent.py": "28b94e6098be6450267fe6e0aef90d0e8cff0e17ba8490a11d418fc1e83c2305"
+      },
+      "engine_manifest_sha256": "492f625122773a614a13d6834f14a1c3fc549767970c8e065769bc75a66ff2bd",
+      "counts": {
+        "decisions": 1174,
+        "invalidated_observations": 0,
+        "observation_requests_completed": 0,
+        "observation_requests_issued": 5,
+        "observations": 7112,
+        "observe_actions": 553,
+        "required_missing": 9,
+        "targets_observed": 5629
+      },
+      "components": {
+        "observation_request_reward": 0.0,
+        "report_settlement": 0.0,
+        "required_penalty": -450.0,
+        "sum_best_scores": 4273.609415,
+        "uniformity_penalty": -5.668786
+      }
+    },
+    "delta": {
+      "calibration_id": "delta-calibration-v1",
+      "target": 2975.56,
+      "total": 3036.405311,
+      "residual": 60.845311,
+      "budget_seconds": 900,
+      "termination": "survey_complete",
+      "card_input_sha256": "dc50f4fe58e391c8ab27239d2f16db88731cc389b7970e53d298ba77b49f0e44",
+      "agent_sha256": {
+        "agent_core/__init__.py": "86f2aa3636a25e64fde75376458dbe0fa1efcbee58d18ee5cfc93322ccc45330",
+        "agent_core/geometry.py": "b74bf06524123dfda2157f03f2459766d232e811de9328a26e0eedd30627a1fd",
+        "agent_core/llm_client.py": "d03e485305fe78285afafa82b8dd6bdc0dbca4ea5b53b69cde4f22bc812048f7",
+        "agent_core/memory.py": "50b85b4a71e0450b54eb9487d40da11fddc8c41199612fba3810ddddf0e8bbfa",
+        "agent_core/planner.py": "a7447798f19d0dbc82ef39cc6d523826d17bd91278a6e1aca0b85aa0674377ad",
+        "agent_core/protocol.py": "470c26cae91e2d40fd629d31d024338e32a2ca645cec669cace2433f7e76edcf",
+        "agent_core/scoring.py": "61ba99f7a074e46a427be2350b47c1daaa5619398bee881b25a5940d02092d78",
+        "agent_core/state.py": "bdb2e3c0fd03fb8de8c541c8ca2713a5b25521f2d7d1ba9137b5ce0db414b7e6",
+        "agent_core/validation.py": "688e2b67fda2e16cb80e04005b69808ae2df82d21822edb8385da48a788f017c",
+        "baseline_agent.py": "28b94e6098be6450267fe6e0aef90d0e8cff0e17ba8490a11d418fc1e83c2305"
+      },
+      "engine_manifest_sha256": "492f625122773a614a13d6834f14a1c3fc549767970c8e065769bc75a66ff2bd",
+      "counts": {
+        "decisions": 1184,
+        "invalidated_observations": 0,
+        "observation_requests_completed": 0,
+        "observation_requests_issued": 5,
+        "observations": 7029,
+        "observe_actions": 550,
+        "required_missing": 23,
+        "targets_observed": 5445
+      },
+      "components": {
+        "observation_request_reward": 0.0,
+        "report_settlement": 0.0,
+        "required_penalty": -1150.0,
+        "sum_best_scores": 4200.020814,
+        "uniformity_penalty": -13.615503
+      }
+    }
+  },
+  "mean_local_score": 3694.35325575
+}

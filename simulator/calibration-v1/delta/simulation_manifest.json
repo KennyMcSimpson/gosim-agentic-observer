@@ -1,0 +1,53 @@
+{
+  "schema_version": "synthetic-frozen-card-v1",
+  "generator_version": "alpha-delta-synthetic-calibration-v6-independent",
+  "card_id": "delta-calibration",
+  "environment_type": "fixed-synthetic-calibration",
+  "base_profile": "delta-like",
+  "created_from": "public alpha-delta input bundle",
+  "official_truth": false,
+  "public_catalog_and_calendar_preserved": true,
+  "calibration_id": "delta-calibration-v1",
+  "frozen_date": "2026-10-04",
+  "source_attempt": "run_output/fit15-900/attempt-20261004-013549-2b58332e",
+  "sha256": {
+    "config/v4_fiber_config.json": "85fc175cb198b1c65d33a123cfbc8b6c1deb10778eef0dbfa659156918e23c8f",
+    "config/v4_scenario.json": "a3d9d12586003ace00a57d6d48ba3831136eb741f249e2914c9f0abe40c26f4f",
+    "config/v4_score_config.json": "8b2dd879a684e8dc51e2a3f33dfe6301c277b7f0ee95415c6649498d3a8784cd",
+    "public/footprint.csv": "d33e3040681aa36993ab98c28205ecc4e4800a7b4452d197bfaf69cc261835fe",
+    "public/targets.csv": "a9bcbe621df83bbe074075f1a786e80490dd578fbc145b028cdc30ced220f2ea",
+    "public/v4_bulletins.jsonl": "c803d1baddc997317a05954a2187abaa78fa0befec0d020cd74a5323ee85bb27",
+    "public/v4_forecasts.jsonl": "8c9a7dca59615344f4ef70bd2947fce9494f34e4614bdd8e4188d2a72e1c9d4f",
+    "public/v4_night_calendar.csv": "81f8cdcdd099f2f4cb8c6216577c7274d2fe7188b68a3acff5ca1f5ad3f6c2d4",
+    "truth/v4_earthquake_effects.csv": "14ea2015dcc6d5c447acf09f82f1037f50531576915625d23cf79228e338d451",
+    "truth/v4_events.csv": "12f60c756a767c2daa3ddaa7a932af9e93d148929b427872de5031fd2884248d",
+    "truth/v4_observation_requests.jsonl": "3c7af39e1b95d42ffe3b979ec527eaa547036119b022a23ac6375ec60e123590",
+    "truth/v4_slots.csv": "9f7643f4070ddcbb76d932c8f1b827f4ea5fa3beb5b41d6872ab4c0ecefbbd35",
+    "truth/v4_stress_events.csv": "e780b50bf02a87f3291ea5fad8467f9eaaa06713342fc70d4498fd11509a8f54",
+    "truth/v4_weather_truth.csv": "baaadc14a22e05dbdb9f623e2657e955d78ddbbe80cd24aa1e7b26f0b622bc7f"
+  },
+  "profile": null,
+  "profile_provenance": "historical exact truth files; original parameter list unavailable",
+  "validation": {
+    "wallclock_budget_seconds": 900,
+    "termination_reason": "survey_complete",
+    "total": 3036.405311,
+    "components": {
+      "observation_request_reward": 0.0,
+      "report_settlement": 0.0,
+      "required_penalty": -1150.0,
+      "sum_best_scores": 4200.020814,
+      "uniformity_penalty": -13.615503
+    },
+    "counts": {
+      "decisions": 1184,
+      "invalidated_observations": 0,
+      "observation_requests_completed": 0,
+      "observation_requests_issued": 5,
+      "observations": 7029,
+      "observe_actions": 550,
+      "required_missing": 23,
+      "targets_observed": 5445
+    }
+  }
+}

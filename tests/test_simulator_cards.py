@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +14,7 @@ sys.path.insert(0, str(ROOT / "vendor" / "gosim-official-v4" / "runner"))
 
 from challenge.v4_runner import load_scenario
 from simulator.cards import available_fixed_cards, list_base_profiles, prepare_fixed_card, prepare_seed_card
+from simulator import cards
 
 
 class SyntheticCardTests(unittest.TestCase):
@@ -50,6 +52,30 @@ class SyntheticCardTests(unittest.TestCase):
             self.assertEqual(first_manifest["environment_type"], "seed-generated-synthetic")
             self.assertEqual(first_manifest["seed"], 42)
             self.assertFalse(first_manifest["official_truth"])
+
+    def test_frozen_truth_is_repeatable_and_rejects_changed_public_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = prepare_fixed_card("alpha", root / "first")
+            second = prepare_fixed_card("alpha", root / "second")
+            for path in first.rglob("*"):
+                if path.is_file():
+                    self.assertEqual(path.read_bytes(), (second / path.relative_to(first)).read_bytes())
+            import shutil
+            public = root / "public-input"
+            shutil.copytree(ROOT / "vendor/public-input/alpha", public / "alpha")
+            with (public / "alpha/public/targets.csv").open("a", encoding="utf-8") as handle:
+                handle.write("\n")
+            with self.assertRaisesRegex(ValueError, "hash mismatch"):
+                prepare_fixed_card("alpha", root / "changed", public_root=public)
+
+    def test_seed_environment_does_not_use_calibration_parameters(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = prepare_seed_card("alpha-like", 42, root / "first")
+            with patch.dict(cards._FIXED_PROFILES, {"alpha": {"seeing_shift": 999}}):
+                second = prepare_seed_card("alpha-like", 42, root / "second")
+            self.assertEqual((first / "truth/v4_weather_truth.csv").read_bytes(), (second / "truth/v4_weather_truth.csv").read_bytes())
 
 
 if __name__ == "__main__":

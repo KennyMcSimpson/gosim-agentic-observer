@@ -29,25 +29,19 @@ _CARD_METADATA = {
     "delta": {"title": "Delta", "symbol": "δ", "start_date": "2026-10-24", "end_date": "2026-11-30", "night_count": 38, "target_count": 9400, "fiber_count": 16},
 }
 
-# Tune these distributions only from score-report evidence. Scores are never scaled.
-_FIXED_PROFILES: dict[str, dict] = {
-    # Each card keeps its own fixed environment profile. These profiles are
-    # calibrated independently; public catalogues and calendars remain unchanged.
+# Seed distributions are independent of the frozen calibration environments.
+_SEED_PROFILES: dict[str, dict] = {
     "alpha": {"rng_key": "candidate-alpha-010", "state_probabilities": (0.68, 0.22, 0.10), "seeing_shift": 0.155, "transparency_shift": -0.077, "sky_shift": -0.077, "efficiency_shift": -0.008, "closed_slot_extra": 0.08, "directional_events": (7, 10), "fault_events": (2, 3), "closure_events": (2, 3), "request_count": (4, 7), "request_size": (8, 12), "request_reward": (80.0, 140.0)},
     "beta": {"rng_key": "independent-beta-fit9", "state_probabilities": (0.64, 0.23, 0.13), "seeing_shift": 0.06, "transparency_shift": -0.04, "sky_shift": -0.04, "efficiency_shift": -0.01, "closed_slot_extra": 0.04, "directional_events": (7, 10), "fault_events": (2, 3), "closure_events": (2, 3), "request_count": (5, 8), "request_size": (8, 14), "request_reward": (80.0, 140.0)},
     "gamma": {"rng_key": "independent-gamma-fit9", "state_probabilities": (0.64, 0.24, 0.12), "seeing_shift": 0.08, "transparency_shift": -0.04, "sky_shift": -0.04, "efficiency_shift": -0.01, "closed_slot_extra": 0.035, "directional_events": (7, 10), "fault_events": (2, 3), "closure_events": (2, 3), "request_count": (4, 8), "request_size": (8, 14), "request_reward": (80.0, 140.0)},
     "delta": {"rng_key": "candidate-delta-002", "state_probabilities": (0.65, 0.24, 0.11), "seeing_shift": 0.035, "transparency_shift": -0.008, "sky_shift": -0.008, "efficiency_shift": -0.006, "closed_slot_extra": 0.012, "directional_events": (6, 9), "fault_events": (1, 2), "closure_events": (1, 2), "request_count": (4, 8), "request_size": (8, 14), "request_reward": (80.0, 140.0)},
 }
 
-# Per-card candidate overrides are intentional: the four screenshot references
-# are separate calibration targets, so their hidden synthetic environments do
-# not share one global weather realization.
-_CARD_CANDIDATE_KEYS = {
-    "alpha": "independent-alpha-final-candidate",
-    "beta": "independent-beta-final-candidate",
-    "gamma": "independent-gamma-final-candidate",
-    "delta": "independent-delta-final-candidate",
-}
+CALIBRATION_VERSION = "calibration-v1"
+
+# Retained for developer candidate scripts; the application never generates
+# fixed cards from these profiles. Frozen truth files are their sole source.
+_FIXED_PROFILES = {key: dict(value) for key, value in _SEED_PROFILES.items()}
 
 # seeing, transparency, sky quality, efficiency ranges, and clear/open probability
 _WEATHER_STATES = (
@@ -81,7 +75,12 @@ def _profile_key(profile: str) -> str:
 
 
 def available_fixed_cards() -> list[dict]:
-    return [{"card_id": card, "label": f"{_CARD_METADATA[card]['symbol']} {card} · 固定校准", "source": "synthetic-calibration", "base_profile": card, **_CARD_METADATA[card]} for card in CARD_IDS]
+    result = []
+    for card in CARD_IDS:
+        frozen = _resource_root() / "simulator" / CALIBRATION_VERSION / card
+        manifest = json.loads((frozen / "simulation_manifest.json").read_text(encoding="utf-8"))
+        result.append({"card_id": card, "label": f"{_CARD_METADATA[card]['symbol']} {card} · 固定校准", "source": "synthetic-calibration", "base_profile": card, **_CARD_METADATA[card], "calibration_id": manifest["calibration_id"], "local_bare_agent_score": manifest["validation"]["total"], "baseline_counts": manifest["validation"]["counts"], "baseline_report_path": str(frozen / "baseline_score_report.json"), "environment_summary": environment_summary(frozen)})
+    return result
 
 
 def list_base_profiles() -> list[dict]:
@@ -301,7 +300,7 @@ def _validate_public_card(source: Path, card_id: str) -> None:
         raise FileNotFoundError(f"public {card_id} input is incomplete: {', '.join(missing)}")
 
 
-def _prepare_card(card_id: str, profile_key: str, rng_key: str, workspace_root: Path, *, public_root: Path | None, environment_type: str, seed: int | None) -> Path:
+def _prepare_card(card_id: str, profile_key: str, rng_key: str, workspace_root: Path, *, public_root: Path | None, environment_type: str, seed: int | None, candidate_profile: Mapping | None = None) -> Path:
     source = _public_root(public_root) / profile_key
     _validate_public_card(source, profile_key)
     output_root = Path(workspace_root).expanduser().resolve()
@@ -320,7 +319,7 @@ def _prepare_card(card_id: str, profile_key: str, rng_key: str, workspace_root: 
         scenario_path.write_text(json.dumps(scenario, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
         slots = _slots(destination / "public" / "v4_night_calendar.csv")
-        profile = _FIXED_PROFILES[profile_key]
+        profile = candidate_profile if candidate_profile is not None else (_SEED_PROFILES[profile_key] if seed is not None else _FIXED_PROFILES[profile_key])
         weather = _weather_rows(slots, profile, _rng(profile_key, rng_key, "weather"))
         events = _build_events(slots, profile, _rng(profile_key, rng_key, "events"))
         stress_config = scenario.get("stress", {})
@@ -352,12 +351,63 @@ def _prepare_card(card_id: str, profile_key: str, rng_key: str, workspace_root: 
     return destination
 
 
+def environment_summary(card_path: Path) -> dict:
+    """Summarize local truth for the report UI, never for the Agent protocol."""
+    _, weather = _read_csv(card_path / "truth" / "v4_weather_truth.csv")
+    _, events = _read_csv(card_path / "truth" / "v4_events.csv")
+    counts: dict[str, int] = {}
+    for event in events:
+        kind = event["event_type"]
+        counts[kind] = counts.get(kind, 0) + 1
+    requests = (card_path / "truth" / "v4_observation_requests.jsonl").read_text(encoding="utf-8").splitlines()
+    return {
+        "slots": len(weather),
+        "open_slots": sum(row["is_observable"].lower() == "true" for row in weather),
+        "mean_seeing_arcsec": round(sum(float(row["seeing_arcsec"]) for row in weather) / len(weather), 4),
+        "mean_transparency": round(sum(float(row["transparency"]) for row in weather) / len(weather), 4),
+        "mean_sky_quality": round(sum(float(row["sky_quality"]) for row in weather) / len(weather), 4),
+        "mean_instrument_efficiency": round(sum(float(row["instrument_efficiency"]) for row in weather) / len(weather), 4),
+        "events_by_type": counts,
+        "request_count": sum(bool(line.strip()) for line in requests),
+    }
+
+
 def prepare_fixed_card(card_id: str, workspace_root: Path, public_root: Path | None = None) -> Path:
-    """Create a stable fixed calibration environment named alpha, beta, gamma, or delta."""
+    """Load the verified frozen environment; never resample a calibration card."""
     key = _profile_key(card_id)
     if key != str(card_id).strip().lower():
         raise ValueError("fixed calibration card id must be alpha, beta, gamma, or delta")
-    return _prepare_card(card_id=f"{key}-calibration", profile_key=key, rng_key=str(_FIXED_PROFILES[key]["rng_key"]), workspace_root=workspace_root, public_root=public_root, environment_type="fixed-synthetic-calibration", seed=None)
+    frozen = _resource_root() / "simulator" / CALIBRATION_VERSION / key
+    manifest = json.loads((frozen / "simulation_manifest.json").read_text(encoding="utf-8"))
+    if manifest.get("calibration_id") != f"{key}-calibration-v1" or manifest.get("official_truth") is not False:
+        raise ValueError(f"invalid frozen calibration manifest: {key}")
+    hashes = manifest.get("sha256", {})
+    required = {"config/v4_scenario.json", "config/v4_fiber_config.json", "config/v4_score_config.json", "truth/v4_slots.csv", "truth/v4_weather_truth.csv", "truth/v4_events.csv", "truth/v4_observation_requests.jsonl", "public/targets.csv", "public/footprint.csv", "public/v4_night_calendar.csv", "public/v4_bulletins.jsonl", "public/v4_forecasts.jsonl"}
+    if not required.issubset(hashes):
+        raise ValueError(f"frozen calibration hashes are incomplete: {key}")
+    destination = Path(workspace_root).expanduser().resolve() / "generated-cards" / f"{key}-calibration"
+    if destination.exists():
+        raise FileExistsError(destination)
+    source = _public_root(public_root) / key
+    _validate_public_card(source, key)
+    shutil.copytree(source, destination)
+    try:
+        for relative, expected in hashes.items():
+            path = Path(relative)
+            if path.is_absolute() or ".." in path.parts or path.parts[0] not in {"config", "public", "truth"}:
+                raise ValueError("invalid calibration file path")
+            overlay = frozen / path
+            output = destination / path
+            if overlay.is_file():
+                output.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(overlay, output)
+            if not output.is_file() or hashlib.sha256(output.read_bytes()).hexdigest() != expected:
+                raise ValueError(f"frozen calibration hash mismatch: {key}/{relative}")
+        shutil.copyfile(frozen / "simulation_manifest.json", destination / "simulation_manifest.json")
+    except Exception:
+        shutil.rmtree(destination, ignore_errors=True)
+        raise
+    return destination
 
 
 def prepare_seed_card(base_profile: str, seed: int, workspace_root: Path, public_root: Path | None = None) -> Path:

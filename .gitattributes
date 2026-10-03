@@ -1,0 +1,4 @@
+# These files are checked against byte-level provenance manifests.
+/vendor/** -text
+/agent/** -text
+/simulator/calibration-v1/** -text

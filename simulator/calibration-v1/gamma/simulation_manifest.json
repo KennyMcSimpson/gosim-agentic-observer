@@ -1,0 +1,89 @@
+{
+  "schema_version": "synthetic-frozen-card-v1",
+  "generator_version": "alpha-delta-synthetic-calibration-v15-independent",
+  "card_id": "gamma-calibration",
+  "environment_type": "fixed-synthetic-calibration",
+  "base_profile": "gamma-like",
+  "created_from": "public alpha-delta input bundle",
+  "official_truth": false,
+  "public_catalog_and_calendar_preserved": true,
+  "calibration_id": "gamma-calibration-v1",
+  "frozen_date": "2026-10-04",
+  "source_attempt": "run_output/tune-gamma-q/attempt-20261004-034726-4cf02ac4",
+  "sha256": {
+    "config/v4_fiber_config.json": "85fc175cb198b1c65d33a123cfbc8b6c1deb10778eef0dbfa659156918e23c8f",
+    "config/v4_scenario.json": "0dcac778dc4ccc3e698c03564fd90f86ca3152728a80d63dfbb33c6026ca959b",
+    "config/v4_score_config.json": "8b2dd879a684e8dc51e2a3f33dfe6301c277b7f0ee95415c6649498d3a8784cd",
+    "public/footprint.csv": "da1bcfe970819a110034caf5212eddad4c7342762f1f574fb90d5facbce4263b",
+    "public/targets.csv": "3de3c2e917fab98d0e81f8280f512f85dbebf4576cd611ea1efe52c8c9e2d488",
+    "public/v4_bulletins.jsonl": "45ab5313bde668bee5fe82b6532f6889c4a9de002ba38d240ca324ec5ce1eb30",
+    "public/v4_forecasts.jsonl": "f8dd107193038efc851c19ef138ee06d1b3150567fc8afee77d8e23e37853076",
+    "public/v4_night_calendar.csv": "55da1bc4ab5dbbafd19c24abc01eedf5278b11552ecb04bd8a36c784734d6a16",
+    "truth/v4_earthquake_effects.csv": "14ea2015dcc6d5c447acf09f82f1037f50531576915625d23cf79228e338d451",
+    "truth/v4_events.csv": "40f7de31265bcfb8af9d29aa7058d2ecac9711452df664a8aa21c0f65b323792",
+    "truth/v4_observation_requests.jsonl": "484a20af366c537d247332b2971396d770e4e3e7b47955aec9c3d1957cb8f02f",
+    "truth/v4_slots.csv": "f6b56031e53ccc3f41bd4df642c41e082c3b7ff2874b423606a6ffb6238c008c",
+    "truth/v4_stress_events.csv": "e780b50bf02a87f3291ea5fad8467f9eaaa06713342fc70d4498fd11509a8f54",
+    "truth/v4_weather_truth.csv": "bf324d75be445fee89c7ae26419f056eadde9269771d2b8fd4bc6440175f2291"
+  },
+  "profile": {
+    "rng_key": "independent-gamma-fit9",
+    "state_probabilities": [
+      0.64,
+      0.24,
+      0.12
+    ],
+    "seeing_shift": 0.108,
+    "transparency_shift": -0.054,
+    "sky_shift": -0.054,
+    "efficiency_shift": -0.005,
+    "closed_slot_extra": 0.044,
+    "directional_events": [
+      7,
+      10
+    ],
+    "fault_events": [
+      2,
+      3
+    ],
+    "closure_events": [
+      2,
+      3
+    ],
+    "request_count": [
+      4,
+      8
+    ],
+    "request_size": [
+      8,
+      14
+    ],
+    "request_reward": [
+      80.0,
+      140.0
+    ]
+  },
+  "profile_provenance": "recorded candidate",
+  "validation": {
+    "wallclock_budget_seconds": 900,
+    "termination_reason": "survey_complete",
+    "total": 3817.940628,
+    "components": {
+      "observation_request_reward": 0.0,
+      "report_settlement": 0.0,
+      "required_penalty": -450.0,
+      "sum_best_scores": 4273.609415,
+      "uniformity_penalty": -5.668786
+    },
+    "counts": {
+      "decisions": 1174,
+      "invalidated_observations": 0,
+      "observation_requests_completed": 0,
+      "observation_requests_issued": 5,
+      "observations": 7112,
+      "observe_actions": 553,
+      "required_missing": 9,
+      "targets_observed": 5629
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "schema_version": "synthetic-frozen-card-v1",
+  "generator_version": "alpha-delta-synthetic-calibration-v6-independent",
+  "card_id": "beta-calibration",
+  "environment_type": "fixed-synthetic-calibration",
+  "base_profile": "beta-like",
+  "created_from": "public alpha-delta input bundle",
+  "official_truth": false,
+  "public_catalog_and_calendar_preserved": true,
+  "calibration_id": "beta-calibration-v1",
+  "frozen_date": "2026-10-04",
+  "source_attempt": "run_output/fit9-900/attempt-20261004-002253-10d30a3e",
+  "sha256": {
+    "config/v4_fiber_config.json": "85fc175cb198b1c65d33a123cfbc8b6c1deb10778eef0dbfa659156918e23c8f",
+    "config/v4_scenario.json": "066c42314ddc923acfbab6d4ea5267d5f10380c1e8ea4bdad9428ca7919023f7",
+    "config/v4_score_config.json": "8b2dd879a684e8dc51e2a3f33dfe6301c277b7f0ee95415c6649498d3a8784cd",
+    "public/footprint.csv": "6437c9db4bb9d71f432b5b10eb953b8df4995435b75b232734f3beb5b92bd960",
+    "public/targets.csv": "4769aa6f76cd0225d58dff58e2cf8628ec4c95c9839d946bc8a80aa23cc0b166",
+    "public/v4_bulletins.jsonl": "a3112a58b5e8790cd9432fca27935265adc7e2748b5334421b7e9923c6cfd901",
+    "public/v4_forecasts.jsonl": "84965545ee0557c70d2e26df7322aa869f4c0c8bf9438bc66da69183dfcb932a",
+    "public/v4_night_calendar.csv": "32813747337d6d2057a93ea7bb99e90fa52d0ea2b3701f0d87a0eaf135a577b5",
+    "truth/v4_earthquake_effects.csv": "14ea2015dcc6d5c447acf09f82f1037f50531576915625d23cf79228e338d451",
+    "truth/v4_events.csv": "7abd19fbed876caa8e87b5e9da74b1d472e9d61a986808f3ff972ee3b777b397",
+    "truth/v4_observation_requests.jsonl": "47e87b825ab3465ccf875a91878259c8034c6e5ce15899a36ae633e80608bd01",
+    "truth/v4_slots.csv": "e130b4f800f00e3500e76d1e288fbbf1124f3e483c378a74566eb8406ffe992d",
+    "truth/v4_weather_truth.csv": "8ac2e5b2da9e91d8083a6d5d842e74197a5764f2d895464f87f3e45496388936"
+  },
+  "profile": null,
+  "profile_provenance": "historical exact truth files; original parameter list unavailable",
+  "validation": {
+    "wallclock_budget_seconds": 900,
+    "termination_reason": "survey_complete",
+    "total": 4586.38559,
+    "components": {
+      "observation_request_reward": 0.0,
+      "report_settlement": 0.0,
+      "required_penalty": -400.0,
+      "sum_best_scores": 4990.164443,
+      "uniformity_penalty": -3.778852
+    },
+    "counts": {
+      "decisions": 1238,
+      "invalidated_observations": 0,
+      "observation_requests_completed": 0,
+      "observation_requests_issued": 8,
+      "observations": 7748,
+      "observe_actions": 594,
+      "required_missing": 8,
+      "targets_observed": 5965
+    }
+  }
+}

@@ -1,6 +1,7 @@
 """Run fixed calibration and seed-generated local v4 environments."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -107,8 +108,9 @@ def available_cards(mode: Optional[str] = None) -> List[dict]:
                 "card_id": "synthetic-" + profile_id + "-like",
                 "base_profile": profile_id,
                 "label": _profile_label(raw, profile_id),
+                "title": profile_id.capitalize() + "-like",
                 "source": "synthetic-seed-profile",
-                **{key: raw[key] for key in ("symbol", "title", "target_count", "night_count") if isinstance(raw, dict) and key in raw},
+                **{key: raw[key] for key in ("target_count", "night_count") if isinstance(raw, dict) and key in raw},
             })
         return cards
     raise ValueError("环境模式必须是 alpha-calibration 或 synthetic-seed。")
@@ -200,7 +202,7 @@ def _model_env(model_mode: str, base_url: str = "", model: str = "", api_key: st
         if api_key:
             values["OPENAI_API_KEY"] = api_key
         return values
-    return {"MODEL_PROVIDER": "deterministic", "USE_LLM": "0"}
+    return {"MODEL_PROVIDER": "deterministic", "USE_LLM": "0", "OPENAI_API_KEY": "local-no-api", "OPENAI_BASE_URL": "http://127.0.0.1:9/v1"}
 
 
 def _minimal_runner_environment(overrides: Dict[str, str]) -> dict:
@@ -284,7 +286,7 @@ def _run_official_card(
         "--inherit-env",
         "--quiet",
     ]
-    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     process = subprocess.Popen(
         args,
         cwd=str(resource_root()),
@@ -361,7 +363,42 @@ def _prepared_card(value: object) -> tuple[Path, dict]:
     path = Path(raw_path).expanduser().resolve()
     if not path.is_dir() or not (path / "config" / "v4_scenario.json").is_file():
         raise FileNotFoundError("生成的 v4 场景目录不完整：%s" % path)
+    manifest_path = path / "simulation_manifest.json"
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        metadata.update({key: manifest[key] for key in ("generator_version", "calibration_id", "environment_type", "profile", "validation") if key in manifest})
+        from simulator.cards import environment_summary
+        metadata["environment_summary"] = environment_summary(path)
     return path, metadata
+
+
+def _file_hashes(root: Path, files) -> dict:
+    return {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(files) if path.is_file()}
+
+
+def _run_receipt(card_path: Path, agent: Path, output_dir: Path, mode: str, seconds: float, model_mode: str) -> dict:
+    entry = Path(agent).resolve()
+    if entry.is_dir():
+        entry = next(entry / name for name in ("baseline_agent.py", "agent.py", "main.py") if (entry / name).is_file())
+    agent_files = [entry]
+    if (entry.parent / "agent_core").is_dir():
+        agent_files.extend((entry.parent / "agent_core").rglob("*.py"))
+    card_files = [p for folder in ("config", "public", "truth") for p in (card_path / folder).rglob("*") if p.is_file()]
+    engine_path = vendor_root() / "runner" / "ENGINE_MANIFEST.json"
+    receipt = {
+        "schema_version": "local-run-manifest-v1",
+        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "mode": mode,
+        "wallclock_budget_seconds": float(seconds),
+        "model_mode": model_mode,
+        "card_sha256": _file_hashes(card_path, card_files),
+        "agent_sha256": _file_hashes(entry.parent, agent_files),
+        "engine_manifest_sha256": hashlib.sha256(engine_path.read_bytes()).hexdigest(),
+        "simulation_manifest": json.loads((card_path / "simulation_manifest.json").read_text(encoding="utf-8")),
+    }
+    (output_dir / "run_manifest.json").write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return receipt
 
 
 def _seed_card_id(profile_id: str, seed: int) -> str:
@@ -448,6 +485,7 @@ def run_batch(
                 else prepare_seed_card(profile_id, seed_value, session)
             )
             card_path, generated_meta = _prepared_card(raw_card)
+            receipt = _run_receipt(card_path, agent, output_dir, mode, wallclock_seconds, model_mode)
             item = _run_official_card(
                 run_card_id,
                 card_path,
@@ -460,6 +498,13 @@ def run_batch(
                 on_event,
             )
             item.update(generated_meta)
+            item.setdefault("outputs", {})["run_manifest.json"] = str(output_dir / "run_manifest.json")
+            report_path = output_dir / "score_report.json"
+            if report_path.is_file():
+                score_report = json.loads(report_path.read_text(encoding="utf-8"))
+                for key in ("decisions", "observations", "invalidated_observations"):
+                    item[key] = score_report.get("counts", {}).get(key)
+            item["card_input_hash"] = hashlib.sha256(json.dumps(receipt["card_sha256"], sort_keys=True).encode("utf-8")).hexdigest()
             item.update({
                 "card_id": run_card_id,
                 "requested_card_id": requested_id,
@@ -514,6 +559,7 @@ def run_batch(
         "model": model if model_env.get("USE_LLM") == "1" else "",
         "quota": quota,
         "total": round(total, 8),
+        "average_score": round(total / len(results), 8) if results else None,
         "completed_cards": len(results),
         "results": results,
         "note": note,

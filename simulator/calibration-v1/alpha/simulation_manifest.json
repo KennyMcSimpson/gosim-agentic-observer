@@ -1,0 +1,88 @@
+{
+  "schema_version": "synthetic-frozen-card-v1",
+  "generator_version": "alpha-delta-synthetic-calibration-v15-independent",
+  "card_id": "alpha-calibration",
+  "environment_type": "fixed-synthetic-calibration",
+  "base_profile": "alpha-like",
+  "created_from": "public alpha-delta input bundle",
+  "official_truth": false,
+  "public_catalog_and_calendar_preserved": true,
+  "calibration_id": "alpha-calibration-v1",
+  "frozen_date": "2026-10-04",
+  "source_attempt": "run_output/tune-alpha-f/attempt-20261004-031803-aabba255",
+  "sha256": {
+    "config/v4_fiber_config.json": "85fc175cb198b1c65d33a123cfbc8b6c1deb10778eef0dbfa659156918e23c8f",
+    "config/v4_scenario.json": "687ab71fc50ac606c2a03de5b1e2eed537ced1589bd0799779a8591c7dafd4eb",
+    "config/v4_score_config.json": "8b2dd879a684e8dc51e2a3f33dfe6301c277b7f0ee95415c6649498d3a8784cd",
+    "public/footprint.csv": "6f62b8733c3d0a405bde82a131110b28b383f01f91bac6e6324fb3f0661b8882",
+    "public/targets.csv": "73242c16513c33f61dbe6cd96a358447e35267d1de6d7cef7cc4b71fad0ae0bc",
+    "public/v4_bulletins.jsonl": "82b56ea670e3ae7945e3fe928b2acf698cb8bf4ca3c3a4efc0492e115e493a56",
+    "public/v4_forecasts.jsonl": "5ac708d195a9bb0f8905cd2e92ba7955f955b5745659ee4573e84e561cd0734f",
+    "public/v4_night_calendar.csv": "313243fdf7aba33fa476e4c31403ba08ee3b90c354c7bb0f82d102122d78be3c",
+    "truth/v4_earthquake_effects.csv": "14ea2015dcc6d5c447acf09f82f1037f50531576915625d23cf79228e338d451",
+    "truth/v4_events.csv": "a1e13906098c4e43d074f2576f8441f87292839247e9db0bd29158ed89f943d9",
+    "truth/v4_observation_requests.jsonl": "36dedc752bb6e4262b4cb4884e3f46a6467ffda5909dc894cfd17d423268e3e4",
+    "truth/v4_slots.csv": "54859bcce16f1ebfdfee56b6317c7cdef362031c2c5a1425aa63a9a33f3b6054",
+    "truth/v4_weather_truth.csv": "06a58c1900ea1cb476857c74f51868554eef9e66a14c197d20c1c0c3016e62b3"
+  },
+  "profile": {
+    "rng_key": "candidate-alpha-010",
+    "state_probabilities": [
+      0.7,
+      0.21,
+      0.09
+    ],
+    "seeing_shift": 0.09,
+    "transparency_shift": -0.035,
+    "sky_shift": -0.035,
+    "efficiency_shift": -0.003,
+    "closed_slot_extra": 0.045,
+    "directional_events": [
+      7,
+      10
+    ],
+    "fault_events": [
+      2,
+      3
+    ],
+    "closure_events": [
+      2,
+      3
+    ],
+    "request_count": [
+      4,
+      7
+    ],
+    "request_size": [
+      8,
+      12
+    ],
+    "request_reward": [
+      80.0,
+      140.0
+    ]
+  },
+  "profile_provenance": "recorded candidate",
+  "validation": {
+    "wallclock_budget_seconds": 900,
+    "termination_reason": "survey_complete",
+    "total": 3336.681494,
+    "components": {
+      "observation_request_reward": 0.0,
+      "report_settlement": 0.0,
+      "required_penalty": -900.0,
+      "sum_best_scores": 4241.88106,
+      "uniformity_penalty": -5.199566
+    },
+    "counts": {
+      "decisions": 1150,
+      "invalidated_observations": 0,
+      "observation_requests_completed": 0,
+      "observation_requests_issued": 6,
+      "observations": 6785,
+      "observe_actions": 525,
+      "required_missing": 18,
+      "targets_observed": 5401
+    }
+  }
+}

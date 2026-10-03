@@ -6,7 +6,7 @@
 
 ## Synthetic simulator
 
-`simulator/cards.py` preserves the public target catalogue, footprint, and night calendar byte-for-byte, then creates compatible local slots, weather truth, events, earthquake effects, bulletins, forecasts, and observation requests. Fixed calibration cards use versioned profile keys; seed cards use a separate `synthetic-<profile>-like-seed-<n>` namespace. `simulation_manifest.json` marks every generated card as `official_truth: false`.
+`simulator/cards.py` preserves the public target catalogue, footprint, and night calendar byte-for-byte. Fixed cards load independently fitted, hash-verified files from `simulator/calibration-v1/`; they are never regenerated at runtime. Seed cards generate local slots, weather, events, earthquake effects, bulletins, forecasts and requests under a separate `synthetic-<profile>-like-seed-<n>` namespace. Every manifest marks `official_truth: false`.
 
 The frozen baseline values and high-score values in `practice_backend.py` are the four values supplied by the user from the official bare-Agent screenshots. They are calibration references only. A local residual measures the difference between the locally generated score and that reference; it cannot establish official hidden-card parity.
 
@@ -18,4 +18,4 @@ The upstream examples package is licensed CC BY-NC 4.0. The team bundle retains 
 
 ## Agent and model configuration
 
-The Python example Agent is copied into `agent/agent_core/` with the local `agent/baseline_agent.py` entrypoint. Any OpenAI-compatible provider, including AnyRouter, is optional and supplied at runtime through the GUI or `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL`. Keys are not stored in this repository.
+The Python example Agent is copied byte-for-byte into `agent/agent_core/`; its official `agent.py` is renamed `agent/baseline_agent.py` without source changes. Any OpenAI-compatible provider, including AnyRouter, is optional and supplied explicitly at runtime through the GUI. The app isolates inherited keys and Agent `.env` files. Keys are not stored in this repository.

@@ -1,0 +1,6 @@
+{"record_type":"forecast","issued_at_utc":"2026-10-25T00:15:00Z","coverage_start_utc":"2026-10-25T00:15:00Z","coverage_end_utc":"2026-11-01T00:15:00Z","notices":[{"event_kind":"instrument_fault","direction":"SW","nights":["2026-10-26"]}]}
+{"record_type":"forecast","issued_at_utc":"2026-11-01T00:30:00Z","coverage_start_utc":"2026-11-01T00:30:00Z","coverage_end_utc":"2026-11-08T00:30:00Z","notices":[{"event_kind":"cloudy","direction":"S","nights":["2026-11-03"]}]}
+{"record_type":"forecast","issued_at_utc":"2026-11-08T00:30:00Z","coverage_start_utc":"2026-11-08T00:30:00Z","coverage_end_utc":"2026-11-15T00:30:00Z","notices":[]}
+{"record_type":"forecast","issued_at_utc":"2026-11-15T00:30:00Z","coverage_start_utc":"2026-11-15T00:30:00Z","coverage_end_utc":"2026-11-22T00:30:00Z","notices":[{"event_kind":"cold_wave","direction":"S","nights":["2026-11-20"]}]}
+{"record_type":"forecast","issued_at_utc":"2026-11-22T00:45:00Z","coverage_start_utc":"2026-11-22T00:45:00Z","coverage_end_utc":"2026-11-29T00:45:00Z","notices":[{"event_kind":"cold_wave","direction":"N","nights":["2026-11-23"]}]}
+{"record_type":"forecast","issued_at_utc":"2026-11-29T00:45:00Z","coverage_start_utc":"2026-11-29T00:45:00Z","coverage_end_utc":"2026-12-01T08:15:00Z","notices":[]}

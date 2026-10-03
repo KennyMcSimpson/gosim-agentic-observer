@@ -86,15 +86,24 @@ class PracticeApp(tk.Tk):
         self.title("GOSIM · 巡天智能体本地评测")
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
+        screen_left, screen_top = 0, 0
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+            work_area = wintypes.RECT()
+            if ctypes.windll.user32.SystemParametersInfoW(48, 0, ctypes.byref(work_area), 0):
+                screen_left, screen_top = work_area.left, work_area.top
+                screen_width = work_area.right - work_area.left
+                screen_height = work_area.bottom - work_area.top
         min_width = max(640, min(1220, screen_width - 32))
         min_height = max(520, min(780, screen_height - 80))
         window_width = max(min_width, min(1480, screen_width - 24))
-        window_height = max(min_height, min(960, screen_height - 48))
+        window_height = max(min_height, min(960, screen_height - 70))
         self.minsize(min_width, min_height)
         self.geometry(
             f"{window_width}x{window_height}+"
-            f"{max(0, (screen_width - window_width) // 2)}+"
-            f"{max(0, (screen_height - window_height) // 2)}"
+            f"{screen_left + max(0, (screen_width - window_width) // 2)}+"
+            f"{screen_top + max(0, (screen_height - window_height - 32) // 2)}"
         )
         self.configure(bg=BG)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -274,7 +283,7 @@ class PracticeApp(tk.Tk):
         self.results = ttk.Treeview(table, columns=cols, show="headings", selectmode="browse")
         for col, title, width, anchor in (
             ("card", "卡片", 118, "w"), ("status", "状态", 105, "w"),
-            ("score", "本地分数", 92, "e"), ("baseline", "截图目标", 92, "e"),
+            ("score", "本地 / 裸 Agent", 108, "e"), ("baseline", "截图目标", 92, "e"),
             ("delta", "目标偏差", 86, "e"), ("high", "参考高分", 96, "e"),
             ("observed", "已观测", 76, "e"), ("missing", "必做未完成", 92, "e"),
             ("output", "运行目录", 220, "w"),
@@ -301,7 +310,7 @@ class PracticeApp(tk.Tk):
         self.details = ScrolledText(right, height=9, wrap="word", state="disabled", bg="#f7f9fc", fg=INK, insertbackground=INK, relief="flat", padx=10, pady=8, font=("Cascadia Mono", 9))
         self.details.grid(row=5, column=0, sticky="nsew")
         self.details.configure(state="normal")
-        self.details.insert("end", "选择一张已完成的卡，可查看 score_report.json 中的 counts、components、by_class 和 uniformity_bands。")
+        self.details.insert("end", "calibration-v1 · 四张独立冻结环境")
         self.details.configure(state="disabled")
         ttk.Label(right, text="运行日志", style="PanelTitle.TLabel").grid(row=6, column=0, sticky="w", pady=(9, 5))
         self.log = ScrolledText(right, height=11, wrap="word", state="disabled", bg="#101a2a", fg="#d8e3f2", insertbackground="white", relief="flat", padx=10, pady=8, font=("Cascadia Mono", 9))
@@ -370,15 +379,29 @@ class PracticeApp(tk.Tk):
             if meta.get("frozen_baseline_score") is not None:
                 refs.append(f"截图基线 {_score(meta['frozen_baseline_score'])}")
             if meta.get("high_score") is not None:
-                refs.append(f"最高分 {_score(meta['high_score'])}")
-            ttk.Checkbutton(self.cards_frame, text=_card_title(card), variable=self.card_vars[card_id], command=self._refresh_calibration_summary).grid(row=i, column=0, sticky="w", pady=1)
+                refs.append(f"参考高分 {_score(meta['high_score'])}")
+            ttk.Checkbutton(self.cards_frame, text=_card_title(card), variable=self.card_vars[card_id], command=self._refresh_calibration_summary).grid(row=i * 2, column=0, columnspan=2, sticky="w", pady=1)
             if refs:
-                ttk.Label(self.cards_frame, text="  ·  ".join(refs), style="Muted.TLabel", anchor="e").grid(row=i, column=1, sticky="e", pady=1)
+                ttk.Label(self.cards_frame, text="  ·  ".join(refs), style="Muted.TLabel").grid(row=i * 2 + 1, column=0, columnspan=2, sticky="w", padx=22, pady=(0, 4))
         if self.mode_var.get() == CALIBRATION_MODE:
-            self.card_source_note.configure(text="α–δ 使用公开目录和日历，并在本地合成未公开环境；截图分数仅作校准参照，不代表官方隐藏真值。")
+            self.card_source_note.configure(text="calibration-v1 · 独立冻结环境 · 本地合成")
         else:
             self.card_source_note.configure(text="Seed 卡按所选基础型生成独立、可复现的本地合成环境；与 α–δ 固定校准卡分开。")
         self._refresh_calibration_summary()
+        if hasattr(self, "results") and not self.active:
+            self.results.configure(displaycolumns=("card", "status", "score", "baseline", "delta", "high", "observed", "missing", "output") if self.mode_var.get() == CALIBRATION_MODE else ("card", "status", "score", "observed", "missing", "output"))
+            self.results.heading("score", text="本地 / 裸 Agent" if self.mode_var.get() == CALIBRATION_MODE else "本地分数")
+            self.card_rows.clear()
+            self.results.delete(*self.results.get_children())
+            for card_id, meta in self.card_metadata.items():
+                score = meta.get("local_bare_agent_score")
+                target = meta.get("calibration_target_score")
+                residual = f"{score - target:+,.2f}" if score is not None and target is not None else "—"
+                counts = meta.get("baseline_counts", {})
+                self.card_rows[card_id] = self.results.insert("", "end", iid=card_id, values=(meta.get("title", meta.get("label", card_id)), "冻结裸 Agent" if score is not None else "待运行", _score(score), _score(target), residual, _score(meta.get("high_score")), counts.get("targets_observed", "—"), counts.get("required_missing", "—"), ""))
+            if self.card_rows:
+                self.results.selection_set(next(iter(self.card_rows.values())))
+                self._show_selected_details()
 
     def _refresh_calibration_summary(self) -> None:
         if not hasattr(self, "target_average_label"):
@@ -487,10 +510,10 @@ class PracticeApp(tk.Tk):
         self.cards = self._load_cards(mode)
         self._populate_cards()
         if mode == CALIBRATION_MODE:
-            self.mode_note_var.set("固定 α–δ 本地合成场景；用官网裸 Agent 截图分数作参照，不代表官方真值。")
+            self.mode_note_var.set("calibration-v1 · 完整 900 秒预算校准")
             self.seed_controls.grid_remove()
         else:
-            self.mode_note_var.set("Seed 生成与校准卡分离的可复现测试卡；Seed 只改变本地合成环境。")
+            self.mode_note_var.set("独立合成卡 · 独立天气、事件与设备状态")
             self.seed_controls.grid()
         self._refresh_calibration_summary()
 
@@ -586,8 +609,8 @@ class PracticeApp(tk.Tk):
             if not self.base_url_var.get().strip() or not self.model_var.get().strip():
                 messagebox.showwarning("AnyRouter 配置未完成", "填写 OpenAI 兼容接口地址和模型名。")
                 return
-            if not self.api_key_var.get().strip() and not os.environ.get("OPENAI_API_KEY"):
-                messagebox.showwarning("缺少 API Key", "填写 Key，或在启动前设置 OPENAI_API_KEY 环境变量。")
+            if not self.api_key_var.get().strip():
+                messagebox.showwarning("缺少 API Key", "填写本次运行的 API Key。")
                 return
 
         self.active, self.completed, self.requested = True, 0, len(cards)
@@ -692,12 +715,27 @@ class PracticeApp(tk.Tk):
             card = selected[0]
             values = self.results.item(card, "values")
             meta = self.card_metadata.get(card, {})
-            lines.extend([
-                f"卡片：{values[0]}",
-                f"本地合成分数：{values[2]}    截图校准目标：{values[3]}    目标偏差：{values[4]}    参考高分：{values[5]}",
-            ])
+            lines.append(f"卡片：{values[0]}")
+            if meta.get("source") == "synthetic-seed-profile":
+                lines.append(f"合成卡 ID：synthetic-{meta['base_profile']}-like-seed-{self.seed_var.get()}")
+                lines.append(f"本地合成分数：{values[2]}")
+            else:
+                lines.append(f"本地合成分数：{values[2]}    截图校准目标：{values[3]}    目标偏差：{values[4]}    参考高分：{values[5]}")
             output_dir = str(values[8] or "")
-            report_path = Path(output_dir) / "score_report.json" if output_dir else None
+            report_path = Path(output_dir) / "score_report.json" if output_dir else Path(meta["baseline_report_path"]) if meta.get("baseline_report_path") else None
+            if meta.get("calibration_id"):
+                lines.append(f"冻结环境：{meta['calibration_id']}")
+            if not output_dir and report_path:
+                lines.append("当前记录：冻结时的官方裸 Agent 完整回放")
+            if meta.get("run_card_id"):
+                lines.append(f"运行卡 ID：{meta['run_card_id']}")
+            environment = meta.get("environment_summary")
+            if isinstance(environment, dict):
+                lines.extend([
+                    f"本地环境：开放时段 {environment['open_slots']}/{environment['slots']} · 限时请求 {environment['request_count']}",
+                    f"平均视宁度 {environment['mean_seeing_arcsec']}″ · 透明度 {environment['mean_transparency']} · 天空质量 {environment['mean_sky_quality']} · 仪器效率 {environment['mean_instrument_efficiency']}",
+                    "事件：" + ", ".join(f"{key} {count}" for key, count in environment["events_by_type"].items()),
+                ])
             report: dict[str, Any] = {}
             if report_path and report_path.is_file():
                 try:
@@ -738,7 +776,6 @@ class PracticeApp(tk.Tk):
                     f"  {labels.get(key, key)}（{key}）：{value}"
                     for key, value in sorted(counts.items())
                 )
-                lines.append("字段口径：decisions、observe_actions 和 observations 含义不同，分别展示，不映射为“结果提交数”。")
             by_class = report.get("by_class")
             if isinstance(by_class, dict):
                 lines.append("目标类别得分（by_class）")
@@ -795,6 +832,9 @@ class PracticeApp(tk.Tk):
             return
         if kind == "batch_card_done":
             card = str(event.get("requested_card_id") or event.get("card_id") or "")
+            if card in self.card_metadata:
+                self.card_metadata[card].update({key: event[key] for key in ("environment_summary", "calibration_id") if key in event})
+                self.card_metadata[card]["run_card_id"] = event.get("card_id", card)
             if event.get("termination_reason") in {"runner_error", "agent_error", "agent_initialization_error"}:
                 self.had_error = True
             self._set_row(card, status=_status(event.get("termination_reason")), score=event.get("total"), observed=event.get("targets_observed", "—"), missing=event.get("required_missing", "—"), output=str(event.get("output_dir", "")), tag="done")

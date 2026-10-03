@@ -35,6 +35,7 @@ def _install_windows_pipe_transport() -> None:
                 stdout=transport_module.subprocess.PIPE,
                 stderr=transport_module.subprocess.PIPE,
                 bufsize=0,
+                creationflags=transport_module.subprocess.CREATE_NO_WINDOW,
                 start_new_session=True,
             )
             self._stdout_lines: queue.Queue = queue.Queue()
@@ -164,6 +165,10 @@ def main() -> int:
     sys.path.insert(0, str(runner))
     _install_windows_pipe_transport()
     import run_local
+
+    # The GUI passes model settings explicitly. Agent-local .env files must not
+    # silently turn a bare baseline run into an API-assisted run.
+    run_local.load_dotenv = lambda _path: {}
 
     return int(run_local.main())
 
