@@ -223,8 +223,10 @@ class PracticeApp(tk.Tk):
         ttk.Label(top, text="评测结果", style="PanelTitle.TLabel").grid(row=0, column=0, sticky="w")
         box = tk.Frame(top, bg="#eef4ff", padx=11, pady=5)
         box.grid(row=0, column=1, sticky="e")
-        tk.Label(box, text="四卡截图目标均分", bg="#eef4ff", fg=MUTED, font=("Segoe UI", 8)).grid(row=0, column=0, sticky="w", padx=(0, 10))
-        tk.Label(box, textvariable=self.target_average_var, bg="#eef4ff", fg=INK, font=("Segoe UI", 9, "bold")).grid(row=0, column=1, sticky="e")
+        self.target_average_label = tk.Label(box, text="所选校准卡截图目标均分", bg="#eef4ff", fg=MUTED, font=("Segoe UI", 8))
+        self.target_average_label.grid(row=0, column=0, sticky="w", padx=(0, 10))
+        self.target_average_value = tk.Label(box, textvariable=self.target_average_var, bg="#eef4ff", fg=INK, font=("Segoe UI", 9, "bold"))
+        self.target_average_value.grid(row=0, column=1, sticky="e")
         tk.Label(box, text="本批卡均分", bg="#eef4ff", fg=MUTED, font=("Segoe UI", 8)).grid(row=1, column=0, sticky="w", padx=(0, 10))
         tk.Label(box, textvariable=self.batch_score_var, bg="#eef4ff", fg=BLUE, font=("Segoe UI", 11, "bold")).grid(row=1, column=1, sticky="e")
         prog = ttk.Frame(right, style="Panel.TFrame")
@@ -326,13 +328,35 @@ class PracticeApp(tk.Tk):
                 refs.append(f"截图基线 {_score(meta['frozen_baseline_score'])}")
             if meta.get("high_score") is not None:
                 refs.append(f"最高分 {_score(meta['high_score'])}")
-            ttk.Checkbutton(self.cards_frame, text=_card_title(card), variable=self.card_vars[card_id]).grid(row=i, column=0, sticky="w", pady=1)
+            ttk.Checkbutton(self.cards_frame, text=_card_title(card), variable=self.card_vars[card_id], command=self._refresh_calibration_summary).grid(row=i, column=0, sticky="w", pady=1)
             if refs:
                 ttk.Label(self.cards_frame, text="  ·  ".join(refs), style="Muted.TLabel", anchor="e").grid(row=i, column=1, sticky="e", pady=1)
         if self.mode_var.get() == CALIBRATION_MODE:
             self.card_source_note.configure(text="α–δ 使用公开目录和日历，并在本地合成未公开环境；截图分数仅作校准参照，不代表官方隐藏真值。")
         else:
             self.card_source_note.configure(text="Seed 卡按所选基础型生成独立、可复现的本地合成环境；与 α–δ 固定校准卡分开。")
+        self._refresh_calibration_summary()
+
+    def _refresh_calibration_summary(self) -> None:
+        if not hasattr(self, "target_average_label"):
+            return
+        if self.mode_var.get() != CALIBRATION_MODE:
+            self.target_average_label.grid_remove()
+            self.target_average_value.grid_remove()
+            return
+        self.target_average_label.grid()
+        self.target_average_value.grid()
+        selected_targets = []
+        for card_id, variable in self.card_vars.items():
+            meta = self.card_metadata.get(card_id, {})
+            value = meta.get("calibration_target_score", meta.get("frozen_baseline_score"))
+            if variable.get() and value is not None:
+                try:
+                    selected_targets.append(float(value))
+                except (TypeError, ValueError):
+                    continue
+        mean = sum(selected_targets) / len(selected_targets) if selected_targets else None
+        self.target_average_var.set(_score(mean))
 
     def _environment_panel(self, parent: ttk.Frame, row: int) -> None:
         p = ttk.LabelFrame(parent, text="3  ·  环境与运行时限", padding=(9, 7))
@@ -425,6 +449,7 @@ class PracticeApp(tk.Tk):
         else:
             self.mode_note_var.set("Seed 生成与校准卡分离的可复现测试卡；Seed 只改变本地合成环境。")
             self.seed_controls.grid()
+        self._refresh_calibration_summary()
 
     def _update_model(self) -> None:
         state = "normal" if self.model_mode_var.get() == "anyrouter" else "disabled"
@@ -437,6 +462,7 @@ class PracticeApp(tk.Tk):
     def _select_cards(self, value: bool) -> None:
         for var in self.card_vars.values():
             var.set(value)
+        self._refresh_calibration_summary()
 
     def _refresh_quota(self) -> None:
         if not self.output_root_var.get().strip() or quota_status is None:
@@ -747,7 +773,8 @@ class PracticeApp(tk.Tk):
                 except (TypeError, ValueError, AttributeError):
                     pass
             if scores:
-                self.batch_score_var.set(_score(sum(scores)))
+                # The adjacent label reports the mean across the completed cards.
+                self.batch_score_var.set(_score(sum(scores) / len(scores)))
             self.progress_note_var.set(f"批次完成：{len(event.get('results', []))} 张卡")
             self._append_log(f"本批完成：{value or '—'}", good=True)
             self._refresh_quota()
