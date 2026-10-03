@@ -1,0 +1,120 @@
+{
+  "schema_version": "local-cards-engine-manifest-v1",
+  "description": "Byte-identical copies of the platform's own v4 engine/scoring modules, as executed by project_platform/trusted_engine.py:run_v4_session (challenge.v4_workflow.V4Workflow) for a colocated v4 project submission. Only run_local.py in this directory is new code.",
+  "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+  "source_repo": "survey26 (origin/main)",
+  "files": [
+    {
+      "repo_path": "challenge/__init__.py",
+      "runner_path": "challenge/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/challenge_workflow.py",
+      "runner_path": "challenge/challenge_workflow.py",
+      "sha256": "a790769bab713fe3e15f83087724264c74afa09f7f7bc1167e0da979835fa45e",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/contracts.py",
+      "runner_path": "challenge/contracts.py",
+      "sha256": "a6ea14cec151450c1e0edb2023f2fd3e5980e87ee9c8fc1717188983979f1335",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/observation_request_simulator.py",
+      "runner_path": "challenge/observation_request_simulator.py",
+      "sha256": "3997f2e3f281b74f496f13c995c28851f3683d7a6118f80bdcc865ce62e747c8",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/observing_calendar.py",
+      "runner_path": "challenge/observing_calendar.py",
+      "sha256": "897f81e4c0fd3b8eca5a6d490d96aff2e9ff2b6ca4a1d0b6837ee9a479125117",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/project_paths.py",
+      "runner_path": "challenge/project_paths.py",
+      "sha256": "0bde3926c12a89d48694bcf8ec78c1a915936d5a02b647004184ac8887df6857",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/scoring_core.py",
+      "runner_path": "challenge/scoring_core.py",
+      "sha256": "abb3e2758b11380f1b894d8eb743a220e4384f0b55f964cac51a6d19eca93b65",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/tile_geometry_simulator.py",
+      "runner_path": "challenge/tile_geometry_simulator.py",
+      "sha256": "d651caa58d05db0619e408e7613db27e5665d2d15e3e13f038182e137deede73",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/v4_config_check.py",
+      "runner_path": "challenge/v4_config_check.py",
+      "sha256": "afb7ed2e2d81230414047dad392d39a3ad5d94d2ee089d4e78e561beee5e72a8",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/v4_fiber_map.py",
+      "runner_path": "challenge/v4_fiber_map.py",
+      "sha256": "9ac7ffd1d865d7c5bc999e554ae9516d208980d948d39223d9f0a047f2d72892",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/v4_runner.py",
+      "runner_path": "challenge/v4_runner.py",
+      "sha256": "390cc6e7fa0a4ff31fa76fe4485511c026ee3355b3c4c203afea471e6a55af4d",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/v4_scorer.py",
+      "runner_path": "challenge/v4_scorer.py",
+      "sha256": "46154188eb409fb8408845d0a40ea07c143e1bb1f297f7ee79ab1559ac24cd66",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/v4_workflow.py",
+      "runner_path": "challenge/v4_workflow.py",
+      "sha256": "365d423055514373f574d924d6321735659e0eead0f6b0260904dfcdb2113fba",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "challenge/weather_simulator.py",
+      "runner_path": "challenge/weather_simulator.py",
+      "sha256": "41c82b106c88ea6eee0348b48801cdad2043379cadf34d8547c7bf45705af098",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "project_platform/__init__.py",
+      "runner_path": "project_platform/__init__.py",
+      "sha256": "9383ca5b909c3344d7e16cebbf5446456fb6c636f93ca284f6f170f97e0c8be8",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    },
+    {
+      "repo_path": "project_platform/transport.py",
+      "runner_path": "project_platform/transport.py",
+      "sha256": "e704392660c8651d58da0413ab7fd548fda86c9062cb8f7e4030c33176bfedc3",
+      "source_commit": "db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a",
+      "source_repo": "survey26 (origin/main)"
+    }
+  ]
+}

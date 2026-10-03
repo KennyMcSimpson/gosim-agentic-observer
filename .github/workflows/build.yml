@@ -31,22 +31,10 @@ jobs:
           python-version: '3.12'
       - name: Install packager
         run: python -m pip install 'pyinstaller==6.22.3'
-      - name: Install participant dependencies
-        run: python -m pip install --disable-pip-version-check --no-cache-dir --target .ci-deps -r agent/requirements.txt
       - name: Build native app
         run: python scripts/build.py
-      - name: Run declared complete-project entry
-        run: python scripts/smoke_project.py
-      - name: Run complete-project entry with installed participant dependencies
-        env:
-          MODEL_PROVIDER: deterministic
-          PYTHONPATH: ${{ github.workspace }}/.ci-deps
-          SMOKE_INHERIT_ENV: '1'
-        run: python scripts/smoke_project.py
-      - name: Run participant JSONL v2 contract smoke
-        run: python scripts/smoke_protocol.py
-      - name: Run both public scenarios inside packaged app
-        run: python scripts/smoke_release.py
+      - name: Run official v4 local-card smoke
+        run: python scripts/smoke_v4_official.py
       - uses: actions/upload-artifact@v4
         with:
           name: GOSIMPractice-${{ matrix.package }}

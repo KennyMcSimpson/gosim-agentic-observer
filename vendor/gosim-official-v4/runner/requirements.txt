@@ -1,0 +1,10 @@
+# The v4 engine/scoring chain copied into challenge/ and project_platform/ (see ENGINE_MANIFEST.json)
+# imports nothing beyond the Python standard library -- confirmed by inspecting every import line in
+# all 16 copied files. run_local.py (the only new file here) is also standard-library only.
+#
+# Python version: the platform's own runner image pins python:3.12-slim (worker/Dockerfile,
+# .github/workflows/worker.yml "python-version: 3.12", survey26 @ db4bddf3cc67fb5f0036d9fb2cf90b9e2b7e8f4a).
+# Use Python 3.12 locally for the closest match; 3.9+ also works since the code only uses
+# "from __future__ import annotations" for the newer type-hint syntax.
+#
+# Nothing to pip install.

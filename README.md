@@ -1,68 +1,47 @@
-# GOSIM 本地完整项目练习器
+# GOSIM 巡天智能体 v4 本地评测台
 
-最新迁移记录：[2026-10-02 讲座与 v4 赛题迁移记录](docs/LECTURE_2026-10-02.md)。桌面应用仍面向公开 v3 练习场景；仓库另含一个与 v3 练习线隔离的 v4 本地 harness，用于协议、几何、评分和工作流的本地回归。两者都不能作为正式或隐藏赛成绩证明。
+这个仓库现在只保留 v4 流程：官方 examples 的 Python anchor-search Agent、官方公开 L1–L4 本地卡、官方 v4 runner，以及一个可选的桌面评测界面。
 
-一个只在本机运行的桌面练习应用。它让你选择自己的 Python Agent，按官方公开的完整项目练习流程，在 dev-fortnight 和 dev-reference 场景上逐轮运行，每场景上限 18000 秒，并用随入门包提供的评分器计算结果。每次运行都会另存完整轨迹、评分报告、Agent 日志和回放页面；可以反复运行。
+## 先分清三种卡
 
-这里仅实现公开场景的本地练习。应用不连接赛事账号、不上传作品，也不模拟隐藏场景或云端容器。练习赛每日 5 次是官网的云端提交额度，本地运行没有这个额度。
+`vendor/gosim-official-v4/local-cards/L1` 到 `L4` 是 examples 包附带的完整本地卡。它们包含 `config/`、公开输入和裁判 truth，可以离线调用官方 runner 评分。分数只用于本地调试，不能当作线上或隐藏卡成绩。
 
-## 使用
+官网练习用的 alpha、beta、gamma、delta 是另一组云端卡。仓库不会把 L1–L4 冒充 alpha–delta。`vendor/public-input/alpha/` 到 `delta/` 保存四个 ZIP 的公开配置和目标目录；它们都没有 truth、天气、事件或 observation requests，因此不能凭它们复现官方分数。正式平台会在运行时逐步提供允许 Agent 看到的公告和预报，裁判真值仍在平台侧。
 
-1. Windows：直接下载 [GOSIMPractice.exe](https://github.com/KennyMcSimpson/gosim-agentic-observer/releases/latest/download/GOSIMPractice.exe)，保存后双击运行。macOS：从 [latest Release](https://github.com/KennyMcSimpson/gosim-agentic-observer/releases/latest) 下载与你的处理器对应的 ZIP，解压后打开 GOSIMPractice.app；发布页同时提供 `SHA256SUMS.txt`。
-2. 默认使用随应用附带的官方最简确定性 Agent。也可以选择你自己的 agent.py、minimal_agent.py、main.py 或其所在文件夹。
-3. 勾选一个或两个公开场景，选输出目录，点击“开始本地练习”。界面展示各场景分数和状态；“打开结果”可查看 score_report.json、decisions.csv、agent.log 和 decision_replay.html。
-4. 再次点击运行会建立新的结果目录，不覆盖上一次。
+官方 examples 的裸 Agent 已放在 `agent/baseline_agent.py` 和 `agent/agent_core/`。本地没有 key 时，入口会把模型请求导向立即失败的本地地址，让官方 planner 使用自己的确定性回退；平台或 GUI 提供 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 和 `OPENAI_MODEL` 时，才会启用 OpenAI 兼容模型调用。
 
-## v4 本地 harness
+## 运行 Agent
 
-`challenge/v4_workflow.py` 是独立的 JSONL v4 本地 runner，读取一个本地 v4 card 目录并启动一个参加者 Agent。当前入口不经过桌面 GUI，也不由根目录的 `observer.project.json` 调用。它按 `participant-agent-protocol-v4` 处理 `initialize`、`decision_request` 和 `finish`，要求 Agent 对每个请求返回相同 `decision_sequence` 的 `decision_response`；动作是 `observe`、`wait`、`report` 和 `finish`。`observe` 同时携带指向、逐根光纤目标分配、60--3600 秒曝光和 `DARK`/`BRIGHT`/`BACKUP` 程序。
-
-在仓库根目录运行本地 demo fixture：
+在 Windows 机器上使用仓库自带的解释器：
 
 ```powershell
-$python = if (Test-Path .venv\Scripts\python.exe) { '.venv\Scripts\python.exe' } else { 'python' }
-& $python -c "from pathlib import Path; import json; from challenge.v4_workflow import run_v4; result = run_v4(Path('scenarios/v4-demo'), Path('agent/v4_minimal_agent.py'), Path('run_output/v4-smoke'), wallclock_seconds=10); print(json.dumps(result, indent=2))"
+.venv\Scripts\python.exe runner_worker.py --card L1 --agent ".venv\Scripts\python.exe -u agent\baseline_agent.py" --agent-cwd . --wallclock 30 --out run_output\cli-l1
 ```
 
-运行结果写入 `run_output/v4-smoke/`，包括 `initial_publication.json`、`decisions.jsonl`、`workflow_result.json`、`score_report.json` 和 `agent.log`。本地 runner 默认的全局 wall-clock 是 900 秒；上面的命令显式使用 10 秒，只适合快速协议回归。
+运行四张卡：
 
-根目录 `observer.project.json` 继续使用 `observer-project-v1` / `jsonl-v2`，入口仍是 `agent/minimal_agent.py`，对应现有公开 v3 完整项目练习。v4 harness 不会把根项目切换到 `jsonl-v4`，也不改变正式提交协议；正式迁移前仍需以官网当前 Rules、Resources、v4 starter/card 和参赛页实际检查结果为准。
+```powershell
+.venv\Scripts\python.exe -c "from pathlib import Path; from practice_backend import run_batch; run_batch(Path('agent/baseline_agent.py'), ['L1','L2','L3','L4'], 0, Path('run_output/batch'), enforce_quota=False, wallclock_seconds=900, mode='official-fixed')"
+```
 
-`scenarios/v4-demo/` 是本仓库本地构造的 v4 契约 fixture，包含用于回归的 public/truth 文件和一个虚拟站点配置。它用来检查 `observe`、`wait`、`report`、`finish`、光纤 cell、30 度最低高度角、曝光边界和评分流程；它不是官方正式卡，也不代表练习榜、正式赛或隐藏赛成绩。
+Windows 的 `select()` 不能轮询匿名管道，`runner_worker.py` 只在本地进程边界提供线程队列适配；`vendor/gosim-official-v4/runner/challenge/` 和评分文件保持官方 `ENGINE_MANIFEST.json` 的字节校验。
 
-## 作为完整项目提交
+## 桌面界面
 
-仓库根目录包含赛事要求的 `observer.project.json`，可直接把本仓库的公开 GitHub URL
-提交到官网「参赛」页的完整项目练习。平台会从仓库根目录运行
-`agent/minimal_agent.py`，而不是启动桌面 GUI；根 manifest 使用 JSONL v2，构建阶段把
-`agent/requirements.txt` 中已固定版本的依赖安装到 `.deps`，再通过 `PYTHONPATH=.deps` 启用模型依赖。也可以按官方入门包的规则，把 `agent/` 目录用 `pack_agent.py`
-打成不超过平台限制的 ZIP（`pack_agent.py` 随官方入门包提供）。
+```powershell
+.venv\Scripts\python.exe practice_gui.py
+```
 
-模型路径包含两个有界环节：夜初由 planner 读取当前公开快照生成结构化区域/请求优先级，
-随后 selector 只从当前合法 Top-K 候选中选择动作。两次调用默认每 7 个新夜晚的首个快照触发一次（可由 `LLM_REFRESH_NIGHTS` 调整），
-默认单次超时 4 秒、无重试；其余决策和任何异常都回退到确定性排序。模型依赖和平台代理适配已保留，
-但本仓库尚未完成带真实 key 的云端模型 smoke，因此正式评测前仍需在「参赛」页配置自己的模型 API，
-并验证两阶段日志与 wall-clock。若进入正式赛，隐藏决赛无人保持页面打开，必须在 10 月 7 日结束前把密钥处理方式切换为官网的“加密保存”；不要把 `.env` 或任何密钥放进仓库、ZIP 或桌面包。
+界面支持：选择 L1–L4、每卡 900 秒上限、可选本地五批额度、逐卡进度和分数、输出目录与回放目录、官方 anchor-search Agent，以及 OpenAI 兼容接口（包括 AnyRouter）。API key 只在当前运行进程的环境中使用，不写入仓库、设置文件或日志。
 
-内置 Agent Host 运行随包验证过的确定性 Agent。若自己的 Agent 依赖额外 Python 包或未随包验证的标准库模块，在界面选择安装了这些依赖的 Python 3.9+ 解释器；此时它替代内置 Agent Host，仅用于运行所选 Agent。只运行自己信任的脚本；应用不会为自选 Agent 提供操作系统级沙箱。Agent 文件夹的 .env 如存在，仍由本地 runner 读取；不要把密钥放入本仓库。
+`官方固定卡` 模式读取卡片自带的固定天气和事件 truth。`Seed 压力测试` 模式复制官方卡，只扰动隐藏 weather truth 的数值，用来测试策略鲁棒性；它不是官方卡，也不等价于主办方重新生成的 alpha–delta。
 
-正式赛（`online`）只评测完整项目：每批固定运行 A、B、C 三个私有场景，每场 3600 秒，每队每天 10 批；正式阶段不接受 `decisions.csv`。比赛结束前要在官网把一个已确认版本标为队伍最终版本（可更改；未选择时按官网默认规则使用线上最高分批次），之后主办方只在一个隐藏场景对最终版本评测一次，排名只看隐藏成绩。公开仓库或不超过 50 MB 的私有 ZIP 都可以作为完整项目输入。
+## 提交入口
 
-官网模型代理通过 HTTPS 注入 `OPENAI_BASE_URL` 与临时 `OPENAI_API_KEY`。模型调用队伍在正式赛结束前必须把官网密钥处理切换为“加密保存”，因为隐藏评测时不会有人保持参赛页打开；密钥不能写入仓库、ZIP、日志或结果。
+根目录 `observer.project.json` 已声明 `jsonl-v4`，平台入口是 `agent/baseline_agent.py`。GUI、runner 和本地卡不参与线上提交。若改用自己的 Agent，只要它从 stdin 读取 JSONL、向 stdout 输出 JSONL，并遵守 v4 协议即可。
 
-## 从源码运行与构建
+## 来源与许可
 
-需要 Python 3.12（含 Tkinter）。
+`vendor/gosim-official-v4/` 来自 GOSIM 2026 Agentic Observer examples release，包含官方公开卡、runner、文档和 `LICENSE.md`。组织方材料按 CC BY-NC 4.0 使用，仓库保留署名和许可文件；参赛队自己写的 Agent 代码仍归参赛队所有。详见 [VENDOR_PROVENANCE.md](VENDOR_PROVENANCE.md)。
 
-    python practice_gui.py
-    python -m pip install 'pyinstaller>=6,<7'
-    python scripts/build.py
-
-打包脚本在当前操作系统上生成对应应用；Windows 与 macOS 需要分别在各自系统构建。仓库的 GitHub Actions 工作流构建并用内置 Agent 实跑两个场景，然后将系统包附到版本 Release。CI 的无界面实跑验证 JSONL 协议、逐轮仿真和评分；macOS 图形界面仍需在真实 Mac 上打开检查。当前包没有代码签名或公证，系统可能显示首次打开警告。
-
-## 范围与来源
-
-- 本应用调用入门包中的 local_runner.py、challenge/ 评分与仿真模块、最简 Agent，并附公开场景数据；未引入本地 local-lab/、H0/H1 研究工具或参赛提交逻辑。
-- dev-fortnight 从官网公开场景接口获取；dev-reference 随入门包提供。场景文件依公开 manifest 校验。上游资料与本地改动见 [VENDOR_PROVENANCE.md](VENDOR_PROVENANCE.md)。
-- 本地分数只说明当前打包的公开数据和评分器输出，不能代表正式赛的隐藏场景成绩。以[赛事当前规则](https://create.gosim.org/survey26/platform/rules)与主办方公告为准。
-- v4 契约核对来源：[Rules](https://create.gosim.org/survey26/platform/rules)、[Resources](https://create.gosim.org/survey26/platform/resources) 和官方 [`skill-v4.md`](https://create.gosim.org/survey26/platform/skill-v4.md)；来源、fixture provenance 和本地数据边界见 [VENDOR_PROVENANCE.md](VENDOR_PROVENANCE.md)。
+本地结果只用于调试，正式结果以平台为准。

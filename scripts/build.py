@@ -15,6 +15,7 @@ DIST = ROOT / "dist"
 WORK = ROOT / "build"
 IS_WINDOWS = os.name == "nt"
 HOST = "PracticeAgentHost.exe" if IS_WINDOWS else "PracticeAgentHost"
+RUNNER_HOST = "PracticeRunnerHost.exe" if IS_WINDOWS else "PracticeRunnerHost"
 
 
 def _ignore_secret_files(_directory: str, names: list[str]) -> set[str]:
@@ -81,13 +82,23 @@ def main() -> int:
     if not helper.is_file():
         raise FileNotFoundError(helper)
     pyinstaller(
+        "--noconfirm", "--clean", "--onefile", "--console",
+        "--name", "PracticeRunnerHost",
+        "--add-data", f"{ROOT / 'vendor' / 'gosim-official-v4'}:vendor/gosim-official-v4",
+        "--distpath", str(DIST / "runner-helper"),
+        "--workpath", str(WORK / "runner-helper"),
+        "--specpath", str(WORK / "spec"),
+        str(ROOT / "runner_worker.py"),
+    )
+    runner_helper = DIST / "runner-helper" / RUNNER_HOST
+    if not runner_helper.is_file():
+        raise FileNotFoundError(runner_helper)
+    pyinstaller(
         "--noconfirm", "--clean", "--onefile", "--windowed",
         "--name", "GOSIMPractice",
-        "--hidden-import", "challenge.replay",
-        "--add-data", f"{ROOT / 'scenarios'}:scenarios",
         "--add-data", f"{staged_agent}:agent",
-        "--add-data", f"{ROOT / 'challenge' / 'templates'}:challenge/templates",
         "--add-binary", f"{helper}:.",
+        "--add-binary", f"{runner_helper}:.",
         "--distpath", str(DIST),
         "--workpath", str(WORK / "gui"),
         "--specpath", str(WORK / "spec"),

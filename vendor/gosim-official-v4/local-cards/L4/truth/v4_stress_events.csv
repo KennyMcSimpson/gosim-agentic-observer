@@ -1,0 +1,3 @@
+event_id,event_type,trigger_mode,trigger_ref,window_start_fraction,window_end_fraction,window_max_fraction,alt_offset_rad,az_offset_rad
+V4ST0001,data_loss,after_earthquake,V4EV0015,0.404750,0.457341,0.060000,,
+V4ST0002,pointing_offset,at_survey_start,,,,,-0.00086164,-0.00044260
