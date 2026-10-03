@@ -2,9 +2,7 @@
 """Run your agent against a public local practice card using the platform's own v4 engine
 and print the score breakdown.
 
-    python3 run_local.py --card L1 --agent "python3 agent.py"
-    python3 run_local.py --card L2 --agent "node dist/index.js" --agent-cwd ../ts-agent
-    python3 run_local.py --card L3 --agent "./target/release/rust-agent" --agent-cwd ../rust-agent/target/release
+    python3 run_local.py --card path/to/generated-card --agent "python3 agent.py"
 
 This file is the ONLY new code in runner/. Everything under runner/challenge/ and
 runner/project_platform/ is an unmodified, byte-identical copy of the files the cloud
@@ -56,7 +54,6 @@ import time
 from pathlib import Path
 
 KIT_ROOT = Path(__file__).resolve().parent
-CARDS_ROOT = KIT_ROOT.parent / "local-cards"
 if str(KIT_ROOT) not in sys.path:
     sys.path.insert(0, str(KIT_ROOT))
 
@@ -85,10 +82,7 @@ def resolve_card(card_arg: str) -> Path:
     direct = Path(card_arg)
     if scenario_path(direct).is_file():
         return direct.resolve()
-    by_name = CARDS_ROOT / card_arg
-    if scenario_path(by_name).is_file():
-        return by_name.resolve()
-    raise SystemExit(f"card not found: {card_arg!r} (tried {direct} and {by_name})")
+    raise SystemExit(f"card not found: {card_arg!r}; pass a generated card directory containing config/v4_scenario.json")
 
 
 def load_dotenv(path: Path) -> dict[str, str]:
@@ -124,7 +118,7 @@ def agent_environment(agent_cwd: Path, scratch: Path, card: dict, wallclock: flo
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--card", required=True, help="card name under local-cards/ (e.g. L1) or a path to a card folder")
+    parser.add_argument("--card", required=True, help="path to a card folder containing config/v4_scenario.json")
     parser.add_argument("--agent", required=True, help='full command to launch your agent, e.g. "python3 agent.py" or '
                                                         '"node dist/index.js" or "./target/release/rust-agent-v4"')
     parser.add_argument("--agent-cwd", type=Path, default=Path.cwd(), help="working directory for the agent command "

@@ -97,6 +97,7 @@ def main() -> int:
         "--noconfirm", "--clean", "--onefile", "--windowed",
         "--name", "GOSIMPractice",
         "--add-data", f"{staged_agent}:agent",
+        "--add-data", f"{ROOT / 'vendor' / 'public-input'}:vendor/public-input",
         "--add-binary", f"{helper}:.",
         "--add-binary", f"{runner_helper}:.",
         "--distpath", str(DIST),

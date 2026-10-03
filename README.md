@@ -1,47 +1,39 @@
 # GOSIM 巡天智能体 v4 本地评测台
 
-这个仓库现在只保留 v4 流程：官方 examples 的 Python anchor-search Agent、官方公开 L1–L4 本地卡、官方 v4 runner，以及一个可选的桌面评测界面。
+这个仓库用于调试提交到平台的 Agent。默认入口是 `agent/baseline_agent.py`，本地评测使用官方 v4 runner，但测试环境分成两类：四张固定的 alpha–delta 校准卡，以及完全独立的 seed 额外测试。
 
-## 先分清三种卡
+## 两类本地卡
 
-`vendor/gosim-official-v4/local-cards/L1` 到 `L4` 是 examples 包附带的完整本地卡。它们包含 `config/`、公开输入和裁判 truth，可以离线调用官方 runner 评分。分数只用于本地调试，不能当作线上或隐藏卡成绩。
+`alpha`、`beta`、`gamma`、`delta` 保留用户提供 ZIP 中的公开目标、脚印和夜间日历。平台没有公开天气真值、事件真值、观测请求和完整预报，因此 `simulator/cards.py` 按固定版本生成这些缺失文件。生成结果是可重复的本地合成环境，不是官方隐藏真值；界面中的冻结基线和官网高分只是来自用户截图的校准参照。
 
-官网练习用的 alpha、beta、gamma、delta 是另一组云端卡。仓库不会把 L1–L4 冒充 alpha–delta。`vendor/public-input/alpha/` 到 `delta/` 保存四个 ZIP 的公开配置和目标目录；它们都没有 truth、天气、事件或 observation requests，因此不能凭它们复现官方分数。正式平台会在运行时逐步提供允许 Agent 看到的公告和预报，裁判真值仍在平台侧。
+Seed 模式使用 `alpha-like`、`beta-like`、`gamma-like`、`delta-like` 基础 profile，卡片 ID 形如 `synthetic-alpha-like-seed-42`。它为额外稳健性测试生成独立环境，永远不会覆盖固定校准卡，也不会与 alpha–delta 的校准分数混在一起。
 
-官方 examples 的裸 Agent 已放在 `agent/baseline_agent.py` 和 `agent/agent_core/`。本地没有 key 时，入口会把模型请求导向立即失败的本地地址，让官方 planner 使用自己的确定性回退；平台或 GUI 提供 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 和 `OPENAI_MODEL` 时，才会启用 OpenAI 兼容模型调用。
+官方 examples 的 L1–L4、真值和 runner 回归材料已迁移到团队仓库 `gosim-2026-team/training/official-v4/`。主应用不再把 L1–L4 当作默认测试卡；需要验证官方 runner 时，在团队仓库执行回归说明中的命令。
 
-## 运行 Agent
+## 本地运行
 
-在 Windows 机器上使用仓库自带的解释器：
-
-```powershell
-.venv\Scripts\python.exe runner_worker.py --card L1 --agent ".venv\Scripts\python.exe -u agent\baseline_agent.py" --agent-cwd . --wallclock 30 --out run_output\cli-l1
-```
-
-运行四张卡：
-
-```powershell
-.venv\Scripts\python.exe -c "from pathlib import Path; from practice_backend import run_batch; run_batch(Path('agent/baseline_agent.py'), ['L1','L2','L3','L4'], 0, Path('run_output/batch'), enforce_quota=False, wallclock_seconds=900, mode='official-fixed')"
-```
-
-Windows 的 `select()` 不能轮询匿名管道，`runner_worker.py` 只在本地进程边界提供线程队列适配；`vendor/gosim-official-v4/runner/challenge/` 和评分文件保持官方 `ENGINE_MANIFEST.json` 的字节校验。
-
-## 桌面界面
+Windows 使用仓库解释器：
 
 ```powershell
 .venv\Scripts\python.exe practice_gui.py
 ```
 
-界面支持：选择 L1–L4、每卡 900 秒上限、可选本地五批额度、逐卡进度和分数、输出目录与回放目录、官方 anchor-search Agent，以及 OpenAI 兼容接口（包括 AnyRouter）。API key 只在当前运行进程的环境中使用，不写入仓库、设置文件或日志。
+也可以直接运行一张固定校准卡：
 
-`官方固定卡` 模式读取卡片自带的固定天气和事件 truth。`Seed 压力测试` 模式复制官方卡，只扰动隐藏 weather truth 的数值，用来测试策略鲁棒性；它不是官方卡，也不等价于主办方重新生成的 alpha–delta。
+```powershell
+.venv\Scripts\python.exe -c "from pathlib import Path; from practice_backend import run_batch; run_batch(Path('agent/baseline_agent.py'), ['alpha'], 0, Path('run_output/alpha'), enforce_quota=False, wallclock_seconds=900, mode='alpha-calibration')"
+```
 
-## 提交入口
+GUI 支持每卡最长 900 秒、可选本地每日 5 批额度、运行目录和 AnyRouter/OpenAI 兼容接口。API key 只在当前进程使用，不写入设置、日志或仓库。没有 key 时 Agent 使用确定性回退，适合先调试协议和策略。
 
-根目录 `observer.project.json` 已声明 `jsonl-v4`，平台入口是 `agent/baseline_agent.py`。GUI、runner 和本地卡不参与线上提交。若改用自己的 Agent，只要它从 stdin 读取 JSONL、向 stdout 输出 JSONL，并遵守 v4 协议即可。
+`runner_worker.py` 只解决 Windows 匿名管道无法使用 `select()` 的进程边界问题；`vendor/gosim-official-v4/runner/` 中的官方评分文件不做修改。
+
+## 结果解释
+
+每张卡输出 `score_report.json` 和 `batch_summary.json`。报告会记录总分、目标观测数、必做目标缺失数、报告结算、均匀性惩罚、限时观测请求和动作/观测/决策数量。固定卡还记录截图基线、校准目标、参考高分以及 `calibration_residual`，便于调 Agent；这些字段不代表平台的隐藏成绩。
 
 ## 来源与许可
 
-`vendor/gosim-official-v4/` 来自 GOSIM 2026 Agentic Observer examples release，包含官方公开卡、runner、文档和 `LICENSE.md`。组织方材料按 CC BY-NC 4.0 使用，仓库保留署名和许可文件；参赛队自己写的 Agent 代码仍归参赛队所有。详见 [VENDOR_PROVENANCE.md](VENDOR_PROVENANCE.md)。
+`vendor/public-input/alpha` 到 `delta` 是 2026-10-03 收到的公开 taskcard ZIP，仅保留公开输入。`vendor/gosim-official-v4` 是 GOSIM examples 包的本地开发副本，按上游 CC BY-NC 4.0 保留署名与许可。详见 [VENDOR_PROVENANCE.md](VENDOR_PROVENANCE.md)。
 
-本地结果只用于调试，正式结果以平台为准。
+线上提交仍只需要 `observer.project.json` 指向的 JSONL Agent；本地 GUI、模拟器和 score report 不会被当作官方提交结果。

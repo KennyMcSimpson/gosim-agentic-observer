@@ -1,10 +1,8 @@
-"""Run the organizer's fixed public v4 practice cards in the local app."""
+"""Run fixed calibration and seed-generated local v4 environments."""
 from __future__ import annotations
 
 import json
 import os
-import csv
-import random
 import shlex
 import subprocess
 import sys
@@ -17,21 +15,32 @@ from threading import Event
 from typing import Callable, Dict, List, Optional
 
 EventHandler = Callable[[dict], None]
-ALL_CARDS = ("L1", "L2", "L3", "L4")
-CARD_LABELS = {
-    "L1": "L1 · 简单",
-    "L2": "L2 · 中等",
-    "L3": "L3 · 中等偏难",
-    "L4": "L4 · 困难",
+CALIBRATION_MODE = "alpha-calibration"
+SEED_MODE = "synthetic-seed"
+CALIBRATION_CARD_IDS = ("alpha", "beta", "gamma", "delta")
+CALIBRATION_REFERENCES = {
+    "alpha": {"frozen_baseline_score": 3243.83, "calibration_target_score": 3243.83, "high_score": 8000.0},
+    "beta": {"frozen_baseline_score": 4558.45, "calibration_target_score": 4558.45, "high_score": 7400.0},
+    "gamma": {"frozen_baseline_score": 3893.13, "calibration_target_score": 3893.13, "high_score": 7400.0},
+    "delta": {"frozen_baseline_score": 2975.56, "calibration_target_score": 2975.56, "high_score": 7400.0},
 }
+CALIBRATION_REFERENCE_SOURCE = "用户提供的官网裸 Agent 结果截图；本地隐藏环境为合成估计"
 DAILY_ATTEMPT_LIMIT = 5
 VENDOR_RELATIVE = Path("vendor") / "gosim-official-v4"
 
 
 def available_modes() -> List[dict]:
     return [
-        {"mode": "official-fixed", "label": "官方固定卡", "description": "官方公开 L1-L4 与固定 truth"},
-        {"mode": "stress-seed", "label": "Seed 压力测试", "description": "基于官方卡的本地天气 truth 扰动，不代表官方成绩"},
+        {
+            "mode": CALIBRATION_MODE,
+            "label": "α–δ 固定校准",
+            "description": "固定的本地合成隐藏环境；对照官网截图基线，不代表官方真值或官网成绩。",
+        },
+        {
+            "mode": SEED_MODE,
+            "label": "Seed 额外测试",
+            "description": "按 α/β/γ/δ 风格生成独立的合成环境；不属于四张固定校准卡。",
+        },
     ]
 
 
@@ -43,11 +52,66 @@ def vendor_root() -> Path:
     return resource_root() / VENDOR_RELATIVE
 
 
-def available_cards() -> List[dict]:
-    return [
-        {"card_id": card_id, "label": CARD_LABELS[card_id], "source": "official"}
-        for card_id in ALL_CARDS
-    ]
+def _simulator_cards_api():
+    try:
+        from simulator.cards import available_fixed_cards, list_base_profiles
+    except ImportError as exc:
+        raise RuntimeError("本地合成卡生成器 simulator.cards 未安装。") from exc
+    return available_fixed_cards, list_base_profiles
+
+
+def _card_key(card: object) -> str:
+    if isinstance(card, dict):
+        return str(card.get("card_id") or card.get("profile_id") or card.get("id") or "")
+    return str(card)
+
+
+def _profile_key(card: object) -> str:
+    if isinstance(card, dict):
+        return str(card.get("base_profile") or card.get("profile_id") or card.get("id") or card.get("card_id") or "")
+    return str(card)
+
+
+def _profile_label(card: object, profile_id: str) -> str:
+    if isinstance(card, dict):
+        return str(card.get("label") or card.get("title") or card.get("name") or (profile_id + " 风格"))
+    return profile_id + " 风格"
+
+
+def available_cards(mode: Optional[str] = None) -> List[dict]:
+    """Return the card catalog for one mode; seeded profiles stay visibly distinct."""
+    selected_mode = str(mode or CALIBRATION_MODE).strip().lower()
+    available_fixed_cards, list_base_profiles = _simulator_cards_api()
+    if selected_mode == CALIBRATION_MODE:
+        cards = []
+        for raw in available_fixed_cards():
+            card = dict(raw) if isinstance(raw, dict) else {"card_id": str(raw)}
+            card_id = _card_key(card)
+            if card_id not in CALIBRATION_CARD_IDS:
+                continue
+            card["card_id"] = card_id
+            card["source"] = "synthetic-fixed-calibration"
+            card["reference_source"] = CALIBRATION_REFERENCE_SOURCE
+            card.update(CALIBRATION_REFERENCES[card_id])
+            cards.append(card)
+        return cards
+    if selected_mode == SEED_MODE:
+        cards = []
+        for raw in list_base_profiles():
+            profile_id = _profile_key(raw)
+            if profile_id.startswith("synthetic-"):
+                profile_id = profile_id[len("synthetic-"):]
+            if profile_id.endswith("-like"):
+                profile_id = profile_id[:-5]
+            cards.append({
+                "card_id": "synthetic-" + profile_id + "-like",
+                "base_profile": profile_id,
+                "label": _profile_label(raw, profile_id),
+                "source": "synthetic-seed-profile",
+                **{key: raw[key] for key in ("symbol", "title", "target_count", "night_count") if isinstance(raw, dict) and key in raw},
+            })
+        return cards
+    raise ValueError("环境模式必须是 alpha-calibration 或 synthetic-seed。")
 
 
 def default_agent_path() -> Path:
@@ -174,55 +238,6 @@ def _resolve_agent(agent: Path, python_executable: Optional[str]) -> tuple[List[
     return command, entry.parent
 
 
-def _prepare_stress_card(card_id: str, seed: int, root: Path) -> Path:
-    """Clone an official card and perturb hidden weather values only.
-
-    This is deliberately a separate local robustness mode. Public targets,
-    calendar, bulletins and forecasts remain official; the altered numeric
-    weather truth is not an organizer card and must never be called official.
-    """
-    import shutil
-
-    source = vendor_root() / "local-cards" / card_id
-    destination = root / "stress-cards" / (f"{card_id}-seed-{int(seed)}")
-    if destination.exists():
-        shutil.rmtree(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, destination)
-    weather_path = destination / "truth" / "v4_weather_truth.csv"
-    rng = random.Random(f"{int(seed)}:{card_id}")
-    rows = []
-    with weather_path.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        fieldnames = list(reader.fieldnames or [])
-        for row in reader:
-            for field, low, high in (
-                ("seeing_arcsec", 0.75, 1.35),
-                ("transparency", 0.78, 1.18),
-                ("sky_quality", 0.78, 1.18),
-                ("instrument_efficiency", 0.82, 1.12),
-            ):
-                if field not in row:
-                    continue
-                try:
-                    value = float(row[field])
-                except (TypeError, ValueError):
-                    continue
-                multiplier = rng.uniform(low, high)
-                row[field] = f"{max(0.01, value * multiplier):.6f}"
-            rows.append(row)
-    with weather_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
-    config_path = destination / "config" / "v4_scenario.json"
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    config.setdefault("task_card", {})["local_mode"] = "stress-seed"
-    config["task_card"]["seed"] = int(seed)
-    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
-    return destination
-
-
 def _stop_process_tree(process: subprocess.Popen) -> None:
     if process.poll() is not None:
         return
@@ -328,6 +343,36 @@ def _run_official_card(
     return summary
 
 
+def _prepared_card(value: object) -> tuple[Path, dict]:
+    """Accept a scenario path and optional metadata from the simulator layer."""
+    metadata: dict = {}
+    raw_path = value
+    if isinstance(value, dict):
+        raw_path = value.get("path") or value.get("card_path") or value.get("scenario_path")
+        candidate = value.get("metadata")
+        if isinstance(candidate, dict):
+            metadata = dict(candidate)
+    elif isinstance(value, tuple) and value:
+        raw_path = value[0]
+        if len(value) > 1 and isinstance(value[1], dict):
+            metadata = dict(value[1])
+    if raw_path is None:
+        raise ValueError("合成卡生成器没有返回场景目录。")
+    path = Path(raw_path).expanduser().resolve()
+    if not path.is_dir() or not (path / "config" / "v4_scenario.json").is_file():
+        raise FileNotFoundError("生成的 v4 场景目录不完整：%s" % path)
+    return path, metadata
+
+
+def _seed_card_id(profile_id: str, seed: int) -> str:
+    slug = str(profile_id).strip().lower().replace("_", "-").replace(" ", "-")
+    if slug.startswith("synthetic-"):
+        slug = slug[len("synthetic-"):]
+    if slug.endswith("-like"):
+        slug = slug[:-5]
+    return "synthetic-%s-like-seed-%s" % (slug, seed)
+
+
 def run_batch(
     agent: Path,
     card_ids: List[str],
@@ -342,18 +387,26 @@ def run_batch(
     model: str = "",
     stop_event: Optional[Event] = None,
     api_key: str = "",
-    mode: str = "official-fixed",
+    mode: str = CALIBRATION_MODE,
 ) -> dict:
-    requested = list(dict.fromkeys(card_ids))
-    if not requested or any(card_id not in ALL_CARDS for card_id in requested):
-        raise ValueError("请选择官方公开本地练习卡 L1–L4。")
-    mode = str(mode or "official-fixed").strip().lower()
-    if mode not in {"official-fixed", "stress-seed"}:
-        raise ValueError("环境模式必须是 official-fixed 或 stress-seed。")
-    if mode == "stress-seed" and int(seed) == 0:
-        raise ValueError("stress-seed 模式需要非零整数 seed。")
-    if wallclock_seconds <= 0:
-        raise ValueError("每卡运行时限必须大于 0 秒。")
+    mode = str(mode or CALIBRATION_MODE).strip().lower()
+    if mode not in {CALIBRATION_MODE, SEED_MODE}:
+        raise ValueError("环境模式必须是 alpha-calibration 或 synthetic-seed。")
+    try:
+        seed_value = int(seed)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Seed 必须是整数。") from exc
+    requested = list(dict.fromkeys(str(x) for x in card_ids))
+    catalog = available_cards(mode)
+    cards_by_id = {str(card["card_id"]): card for card in catalog}
+    if not requested:
+        raise ValueError("至少选择一张卡。")
+    unknown = [card_id for card_id in requested if card_id not in cards_by_id]
+    if unknown:
+        expected = "α–δ 固定校准卡" if mode == CALIBRATION_MODE else "synthetic-*-like 种子基础型"
+        raise ValueError("所选卡与当前模式不匹配；请选择当前模式的%s。未知项：%s" % (expected, ", ".join(unknown)))
+    if wallclock_seconds <= 0 or wallclock_seconds > 900:
+        raise ValueError("每卡运行时限必须大于 0 且不超过 900 秒。")
     agent_command, agent_cwd = _resolve_agent(agent, python_executable)
     root = Path(output_root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -361,23 +414,42 @@ def run_batch(
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     session = root / ("attempt-%s-%s" % (stamp, uuid.uuid4().hex[:8]))
     session.mkdir(parents=True, exist_ok=False)
+    used_seed = seed_value if mode == SEED_MODE else None
     if on_event:
-        on_event({"type": "batch_start", "output_dir": str(session), "cards": requested, "mode": mode, "seed": int(seed), "quota": quota})
+        on_event({"type": "batch_start", "output_dir": str(session), "cards": requested, "mode": mode, "seed": used_seed, "quota": quota})
+
+    try:
+        from simulator.cards import prepare_fixed_card, prepare_seed_card
+    except ImportError as exc:
+        raise RuntimeError("本地合成卡生成器 simulator.cards 未安装。") from exc
 
     model_env = _model_env(model_mode, base_url, model, api_key)
     runner_env = _minimal_runner_environment(model_env)
     results: List[dict] = []
-    for card_id in requested:
+    for requested_id in requested:
         if stop_event is not None and stop_event.is_set():
             break
-        output_dir = session / card_id
+        card_meta = dict(cards_by_id[requested_id])
+        profile_id = str(card_meta.get("base_profile") or "")
+        run_card_id = requested_id if mode == CALIBRATION_MODE else _seed_card_id(profile_id, seed_value)
+        symbol = str(card_meta.get("symbol") or "")
+        title = str(card_meta.get("title") or card_meta.get("label") or requested_id)
+        label = (symbol + " · " if symbol else "") + title
+        if mode == SEED_MODE:
+            label = "%s · seed %s" % (label, seed_value)
+        output_dir = session / run_card_id
         output_dir.mkdir(parents=True, exist_ok=True)
-        card_path = _prepare_stress_card(card_id, int(seed), session) if mode == "stress-seed" else None
         if on_event:
-            on_event({"type": "batch_card_start", "card_id": card_id, "label": CARD_LABELS[card_id], "output_dir": str(output_dir)})
+            on_event({"type": "batch_card_start", "card_id": run_card_id, "requested_card_id": requested_id, "label": label, "output_dir": str(output_dir)})
         try:
+            raw_card = (
+                prepare_fixed_card(requested_id, session)
+                if mode == CALIBRATION_MODE
+                else prepare_seed_card(profile_id, seed_value, session)
+            )
+            card_path, generated_meta = _prepared_card(raw_card)
             item = _run_official_card(
-                card_id,
+                run_card_id,
                 card_path,
                 agent_command,
                 agent_cwd,
@@ -387,11 +459,32 @@ def run_batch(
                 stop_event,
                 on_event,
             )
-            item.setdefault("label", CARD_LABELS[card_id])
+            item.update(generated_meta)
+            item.update({
+                "card_id": run_card_id,
+                "requested_card_id": requested_id,
+                "label": label,
+                "mode": mode,
+                "simulation_source": "synthetic-fixed-calibration" if mode == CALIBRATION_MODE else "synthetic-seed",
+                "output_dir": str(output_dir),
+            })
+            if mode == CALIBRATION_MODE:
+                item.update({key: card_meta[key] for key in (
+                    "frozen_baseline_score", "calibration_target_score", "high_score", "reference_source"
+                ) if key in card_meta})
+                score = item.get("total")
+                target = card_meta.get("calibration_target_score")
+                if score is not None and target is not None:
+                    item["calibration_residual"] = round(float(score) - float(target), 2)
+            else:
+                item.update({"base_profile": profile_id, "seed": seed_value})
         except Exception as exc:
             item = {
-                "card_id": card_id,
-                "label": CARD_LABELS[card_id],
+                "card_id": run_card_id,
+                "requested_card_id": requested_id,
+                "label": label,
+                "mode": mode,
+                "simulation_source": "synthetic-fixed-calibration" if mode == CALIBRATION_MODE else "synthetic-seed",
                 "termination_reason": "runner_error",
                 "error": "%s: %s" % (type(exc).__name__, exc),
                 "traceback": traceback.format_exc(),
@@ -404,12 +497,18 @@ def run_batch(
             break
 
     total = sum(float(item.get("total", 0.0) or 0.0) for item in results)
+    note = (
+        "α–δ 使用按公开输入构造并冻结的本地合成隐藏环境；截图分数仅是校准参照，不代表恢复了官方隐藏真值。"
+        if mode == CALIBRATION_MODE
+        else "Seed 模式按风格基础型生成独立合成环境；结果用于额外稳健性测试，不属于 α–δ 固定校准卡或官方成绩。"
+    )
     record = {
-        "schema_version": "official-v4-local-batch-v1",
+        "schema_version": "observer-practice-batch-v2",
         "created_utc": datetime.now(timezone.utc).isoformat(),
-        "cards": requested,
+        "cards": [item.get("card_id", requested_id) for requested_id, item in zip(requested, results)],
+        "requested_cards": requested,
         "mode": mode,
-        "seed": int(seed),
+        "seed": used_seed,
         "wallclock_seconds_per_card": float(wallclock_seconds),
         "model_mode": "anyrouter" if model_env.get("USE_LLM") == "1" else "deterministic",
         "model": model if model_env.get("USE_LLM") == "1" else "",
@@ -417,13 +516,12 @@ def run_batch(
         "total": round(total, 8),
         "completed_cards": len(results),
         "results": results,
-        "note": "Official-fixed uses the organizer's public L1-L4 cards. Stress-seed perturbs only hidden weather truth locally; neither mode is a cloud or hidden-card result.",
+        "note": note,
     }
     (session / "batch_summary.json").write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if on_event:
         on_event({"type": "batch_done", "output_dir": str(session), "total": record["total"], "results": results, "quota": quota})
     return record
-
 
 def run_practice(agent: Path, card_ids: List[str], output_root: Path, on_event=None, python_executable=None) -> dict:
     """Compatibility bridge for the former GUI call signature."""

@@ -1,19 +1,21 @@
 # Vendor provenance
 
-## Official v4 examples
+## Public alpha–delta inputs
 
-`vendor/gosim-official-v4/` is copied from `gosim-observer-examples.zip` supplied by the GOSIM 2026 Agentic Observer challenge on 2026-10-03. The copied `local-cards/L1`–`L4` are complete public local practice cards. The copied `runner/challenge/` and `runner/project_platform/` files are the organizer-provided v4 scoring engine; `runner/ENGINE_MANIFEST.json` and `runner/verify_engine.py` are retained.
+`vendor/public-input/alpha` through `delta` are the public-only `taskcard-*.zip` files received on 2026-10-03. Each contains its `config/` and `public/` files only. They do not include weather truth, event truth, observation-request truth, or the organizer's complete forecast history.
 
-The vendor bundle is licensed by the organizers under CC BY-NC 4.0. `LICENSE.md` is kept beside the bundle. The local `runner_worker.py` is a platform adapter for Windows anonymous pipes; it does not alter the vendored engine modules.
+## Synthetic simulator
 
-The upstream Python example Agent is copied into `agent/agent_core/` with its `agent.py` entry adapted as `agent/baseline_agent.py`. The only local change is the no-key fail-fast endpoint described in the README, so a local run follows the upstream deterministic fallback instead of contacting a default remote service.
+`simulator/cards.py` preserves the public target catalogue, footprint, and night calendar byte-for-byte, then creates compatible local slots, weather truth, events, earthquake effects, bulletins, forecasts, and observation requests. Fixed calibration cards use versioned profile keys; seed cards use a separate `synthetic-<profile>-like-seed-<n>` namespace. `simulation_manifest.json` marks every generated card as `official_truth: false`.
 
-## Alpha-delta public input
+The frozen baseline values and high-score values in `practice_backend.py` are the four values supplied by the user from the official bare-Agent screenshots. They are calibration references only. A local residual measures the difference between the locally generated score and that reference; it cannot establish official hidden-card parity.
 
-`vendor/public-input/alpha/` through `delta/` are the public-only `taskcard-*.zip` files received on 2026-10-03. Each contains only its `config/` and `public/` files; none has a `truth/` directory, weather truth, event truth, or observation-request truth. They are retained for schema inspection and agent development only and are not locally scoreable cards.
+## Official examples and training material
 
-## Local additions
+The complete organizer examples package, including L1–L4 truth and the official runner, is stored in the team repository `KennyMcSimpson/gosim-2026-team` under `training/official-v4/`. The application repository intentionally keeps alpha–delta as its main test surface so official regression material does not get confused with the cloud practice cards.
 
-The local no-key fallback is a small runtime adaptation around the upstream Agent. The upstream planner reads only the v4 initialize payload, current decision snapshots, public bulletins/forecasts, and its own observation feedback. Any OpenAI-compatible model call is optional and uses environment values supplied at runtime.
+The upstream examples package is licensed CC BY-NC 4.0. The team bundle retains the upstream license, attribution, engine manifest, and hashes. The local `runner_worker.py` is only a Windows anonymous-pipe adapter and does not modify vendored scoring modules.
 
-`practice_backend.py` runs the vendored official engine in a separate process. `official-fixed` uses the copied L1–L4 directories unchanged. `stress-seed` clones one official card and perturbs only numeric hidden weather truth with a reproducible seed; it is a local robustness test and is never presented as official parity.
+## Agent and model configuration
+
+The Python example Agent is copied into `agent/agent_core/` with the local `agent/baseline_agent.py` entrypoint. Any OpenAI-compatible provider, including AnyRouter, is optional and supplied at runtime through the GUI or `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL`. Keys are not stored in this repository.

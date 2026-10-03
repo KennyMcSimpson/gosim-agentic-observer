@@ -1,4 +1,4 @@
-"""Short offline smoke for the official L1-L4 v4 runner."""
+"""Short smoke for fixed alpha-delta synthetic calibration cards."""
 from __future__ import annotations
 
 import json
@@ -8,18 +8,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from practice_backend import run_batch
+from practice_backend import CALIBRATION_MODE, run_batch
 
 
 def main() -> int:
     result = run_batch(
         ROOT / "agent" / "baseline_agent.py",
-        ["L1", "L2", "L3", "L4"],
+        ["alpha", "beta", "gamma", "delta"],
         0,
         ROOT / "run_output" / "ci-smoke",
         enforce_quota=False,
         wallclock_seconds=3,
-        mode="official-fixed",
+        mode=CALIBRATION_MODE,
     )
     if result.get("completed_cards") != 4:
         raise SystemExit("official v4 smoke did not complete all four cards")

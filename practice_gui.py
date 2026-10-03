@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import inspect
+import json
 import os
 from pathlib import Path
 import queue
@@ -16,10 +17,11 @@ from tkinter.scrolledtext import ScrolledText
 from typing import Any
 
 try:
-    from practice_backend import available_cards, default_agent_path, default_output_root, quota_status, run_batch
+    from practice_backend import CALIBRATION_MODE, SEED_MODE, available_cards, default_agent_path, default_output_root, quota_status, run_batch
     _BACKEND_PARAMS = set(inspect.signature(run_batch).parameters)
     _BACKEND_IMPORT_ERROR: Exception | None = None
 except Exception as exc:  # pragma: no cover - absent bundle
+    CALIBRATION_MODE, SEED_MODE = "alpha-calibration", "synthetic-seed"
     available_cards = default_agent_path = default_output_root = quota_status = run_batch = None  # type: ignore[assignment]
     _BACKEND_PARAMS = set()
     _BACKEND_IMPORT_ERROR = exc
@@ -41,7 +43,7 @@ def _card_title(card: Any) -> str:
     symbol = str(card.get("symbol") or "")
     title = str(card.get("title") or card.get("label") or card.get("name") or _card_id(card))
     detail = []
-    for key, label in (("target_count", "目标"), ("nights", "夜晚"), ("required_count", "必做")):
+    for key, label in (("target_count", "目标"), ("night_count", "夜晚"), ("nights", "夜晚"), ("required_count", "必做")):
         if card.get(key) is not None:
             try:
                 detail.append(f"{label} {int(card[key]):,}")
@@ -82,8 +84,8 @@ class PracticeApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("GOSIM · 巡天智能体本地评测")
-        self.geometry("1280x880")
-        self.minsize(1080, 740)
+        self.geometry("1480x960")
+        self.minsize(1220, 780)
         self.configure(bg=BG)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.events: queue.Queue[dict[str, Any]] = queue.Queue()
@@ -93,8 +95,10 @@ class PracticeApp(tk.Tk):
         self.closing = False
         self.had_error = False
         self.output_dir: Path | None = None
-        self.cards = self._load_cards()
         self.modes = self._load_modes()
+        default_mode = CALIBRATION_MODE if CALIBRATION_MODE in self.modes else self.modes[0] if self.modes else SEED_MODE
+        self.cards = self._load_cards(default_mode)
+        self.card_metadata = {_card_id(card): card for card in self.cards}
         self.card_vars: dict[str, tk.BooleanVar] = {}
         self.card_rows: dict[str, str] = {}
         self.current_card = ""
@@ -104,7 +108,6 @@ class PracticeApp(tk.Tk):
         self.agent_var = tk.StringVar()
         self.interpreter_var = tk.StringVar()
         self.output_root_var = tk.StringVar()
-        default_mode = "official-fixed" if "official-fixed" in self.modes else self.modes[0] if self.modes else "stress-seed"
         self.mode_var = tk.StringVar(value=default_mode)
         self.seed_var = tk.StringVar(value="20261003")
         self.seconds_var = tk.StringVar(value="900")
@@ -118,6 +121,14 @@ class PracticeApp(tk.Tk):
         self.quota_note_var = tk.StringVar()
         self.progress_note_var = tk.StringVar(value="等待开始")
         self.batch_score_var = tk.StringVar(value="—")
+        calibration_cards = self._load_cards(CALIBRATION_MODE)
+        calibration_targets = [
+            float(card["calibration_target_score"])
+            for card in calibration_cards
+            if isinstance(card, dict) and card.get("calibration_target_score") is not None
+        ]
+        target_mean = sum(calibration_targets) / len(calibration_targets) if calibration_targets else None
+        self.target_average_var = tk.StringVar(value=_score(target_mean))
         self._styles()
         self._layout()
         self._load_defaults()
@@ -126,11 +137,11 @@ class PracticeApp(tk.Tk):
         self._refresh_quota()
         self.after(100, self._drain_events)
 
-    def _load_cards(self) -> list[Any]:
+    def _load_cards(self, mode: str | None = None) -> list[Any]:
         if available_cards is None:
             return []
         try:
-            return list(available_cards())
+            return list(available_cards(mode))
         except Exception:
             return []
 
@@ -140,13 +151,10 @@ class PracticeApp(tk.Tk):
         try:
             from practice_backend import available_modes  # type: ignore
             return [str(x.get("mode") if isinstance(x, dict) else x) for x in available_modes()]
-        except Exception:
-            pass
-        if "environment_mode" in _BACKEND_PARAMS or "mode" in _BACKEND_PARAMS:
-            return ["official-fixed", "stress-seed"]
-        if any(isinstance(c, dict) and c.get("source") == "official" for c in self.cards):
-            return ["official-fixed"]
-        return ["stress-seed"]
+        except Exception as exc:
+            if hasattr(self, "log"):
+                self._append_log(f"环境模式列表读取失败：{exc}", error=True)
+            return []
 
     def _styles(self) -> None:
         s = ttk.Style(self)
@@ -183,7 +191,7 @@ class PracticeApp(tk.Tk):
         header.grid_propagate(False)
         header.columnconfigure(0, weight=1)
         ttk.Label(header, text="GOSIM  ·  巡天智能体", style="Title.TLabel").grid(row=0, column=0, sticky="sw", padx=21, pady=(11, 0))
-        ttk.Label(header, text="v4 本地评测台   ·   固定练习卡、环境压力测试与运行回放", style="Subtitle.TLabel").grid(row=1, column=0, sticky="nw", padx=22, pady=(0, 11))
+        ttk.Label(header, text="α–δ 固定校准   ·   Seed 独立测试   ·   评分报告与截图基线对照", style="Subtitle.TLabel").grid(row=1, column=0, sticky="nw", padx=22, pady=(0, 11))
         self.status_badge = tk.Label(header, textvariable=self.status_var, bg="#233757", fg="#e7eef9", font=("Segoe UI", 9, "bold"), padx=14, pady=8)
         self.status_badge.grid(row=0, column=1, rowspan=2, padx=20, sticky="e")
 
@@ -207,15 +215,18 @@ class PracticeApp(tk.Tk):
         right.grid(row=0, column=1, sticky="nsew")
         right.columnconfigure(0, weight=1)
         right.rowconfigure(2, weight=3)
-        right.rowconfigure(5, weight=2)
+        right.rowconfigure(5, weight=1)
+        right.rowconfigure(7, weight=2)
         top = ttk.Frame(right, style="Panel.TFrame")
         top.grid(row=0, column=0, sticky="ew")
         top.columnconfigure(0, weight=1)
         ttk.Label(top, text="评测结果", style="PanelTitle.TLabel").grid(row=0, column=0, sticky="w")
         box = tk.Frame(top, bg="#eef4ff", padx=11, pady=5)
         box.grid(row=0, column=1, sticky="e")
-        tk.Label(box, text="本地累计分数", bg="#eef4ff", fg=MUTED, font=("Segoe UI", 8)).pack(side="left", padx=(0, 7))
-        tk.Label(box, textvariable=self.batch_score_var, bg="#eef4ff", fg=BLUE, font=("Segoe UI", 12, "bold")).pack(side="left")
+        tk.Label(box, text="四卡截图目标均分", bg="#eef4ff", fg=MUTED, font=("Segoe UI", 8)).grid(row=0, column=0, sticky="w", padx=(0, 10))
+        tk.Label(box, textvariable=self.target_average_var, bg="#eef4ff", fg=INK, font=("Segoe UI", 9, "bold")).grid(row=0, column=1, sticky="e")
+        tk.Label(box, text="本批卡均分", bg="#eef4ff", fg=MUTED, font=("Segoe UI", 8)).grid(row=1, column=0, sticky="w", padx=(0, 10))
+        tk.Label(box, textvariable=self.batch_score_var, bg="#eef4ff", fg=BLUE, font=("Segoe UI", 11, "bold")).grid(row=1, column=1, sticky="e")
         prog = ttk.Frame(right, style="Panel.TFrame")
         prog.grid(row=1, column=0, sticky="ew", pady=(9, 7))
         prog.columnconfigure(0, weight=1)
@@ -226,20 +237,25 @@ class PracticeApp(tk.Tk):
         table.grid(row=2, column=0, sticky="nsew")
         table.columnconfigure(0, weight=1)
         table.rowconfigure(0, weight=1)
-        cols = ("card", "status", "score", "observed", "missing", "output")
+        cols = ("card", "status", "score", "baseline", "delta", "high", "observed", "missing", "output")
         self.results = ttk.Treeview(table, columns=cols, show="headings", selectmode="browse")
         for col, title, width, anchor in (
-            ("card", "练习卡", 92, "w"), ("status", "状态", 115, "w"),
-            ("score", "分数", 90, "e"), ("observed", "已观测", 75, "e"),
-            ("missing", "必做未完成", 95, "e"), ("output", "运行目录", 250, "w"),
+            ("card", "卡片", 118, "w"), ("status", "状态", 105, "w"),
+            ("score", "本地分数", 92, "e"), ("baseline", "截图目标", 92, "e"),
+            ("delta", "目标偏差", 86, "e"), ("high", "参考高分", 96, "e"),
+            ("observed", "已观测", 76, "e"), ("missing", "必做未完成", 92, "e"),
+            ("output", "运行目录", 220, "w"),
         ):
             self.results.heading(col, text=title)
             self.results.column(col, width=width, minwidth=55, anchor=anchor, stretch=col == "output")
         self.results.grid(row=0, column=0, sticky="nsew")
         scroll = ttk.Scrollbar(table, orient="vertical", command=self.results.yview)
         scroll.grid(row=0, column=1, sticky="ns")
-        self.results.configure(yscrollcommand=scroll.set)
+        xscroll = ttk.Scrollbar(table, orient="horizontal", command=self.results.xview)
+        xscroll.grid(row=1, column=0, sticky="ew")
+        self.results.configure(yscrollcommand=scroll.set, xscrollcommand=xscroll.set)
         self.results.bind("<Double-1>", lambda _e: self._open_selected())
+        self.results.bind("<<TreeviewSelect>>", lambda _e: self._show_selected_details())
         self.results.tag_configure("running", foreground=BLUE)
         self.results.tag_configure("error", foreground=RED)
         self.results.tag_configure("done", foreground=GREEN)
@@ -248,9 +264,15 @@ class PracticeApp(tk.Tk):
         ttk.Button(buttons, text="打开选中卡片输出", command=self._open_selected).pack(side="left")
         ttk.Button(buttons, text="打开本批目录", command=lambda: self._open(self.output_dir)).pack(side="left", padx=(6, 0))
         ttk.Button(buttons, text="打开输出根目录", command=lambda: self._open(self.output_root_var.get())).pack(side="left", padx=(6, 0))
-        ttk.Label(right, text="运行日志", style="PanelTitle.TLabel").grid(row=4, column=0, sticky="w", pady=(0, 5))
-        self.log = ScrolledText(right, height=13, wrap="word", state="disabled", bg="#101a2a", fg="#d8e3f2", insertbackground="white", relief="flat", padx=10, pady=8, font=("Cascadia Mono", 9))
-        self.log.grid(row=5, column=0, sticky="nsew")
+        ttk.Label(right, text="评分器明细", style="PanelTitle.TLabel").grid(row=4, column=0, sticky="w", pady=(0, 5))
+        self.details = ScrolledText(right, height=9, wrap="word", state="disabled", bg="#f7f9fc", fg=INK, insertbackground=INK, relief="flat", padx=10, pady=8, font=("Cascadia Mono", 9))
+        self.details.grid(row=5, column=0, sticky="nsew")
+        self.details.configure(state="normal")
+        self.details.insert("end", "选择一张已完成的卡，可查看 score_report.json 中的 counts、components、by_class 和 uniformity_bands。")
+        self.details.configure(state="disabled")
+        ttk.Label(right, text="运行日志", style="PanelTitle.TLabel").grid(row=6, column=0, sticky="w", pady=(9, 5))
+        self.log = ScrolledText(right, height=11, wrap="word", state="disabled", bg="#101a2a", fg="#d8e3f2", insertbackground="white", relief="flat", padx=10, pady=8, font=("Cascadia Mono", 9))
+        self.log.grid(row=7, column=0, sticky="nsew")
         self.log.tag_configure("error", foreground="#ff9292")
         self.log.tag_configure("good", foreground="#8fe0b5")
 
@@ -281,6 +303,7 @@ class PracticeApp(tk.Tk):
         self.cards_frame = ttk.Frame(p, style="Panel.TFrame")
         self.cards_frame.grid(row=1, column=0, sticky="ew", pady=(3, 0))
         self.cards_frame.columnconfigure(0, weight=1)
+        self.cards_frame.columnconfigure(1, weight=1)
         self.card_source_note = ttk.Label(p, text="", style="Muted.TLabel", wraplength=360, justify="left")
         self.card_source_note.grid(row=2, column=0, sticky="w", pady=(4, 0))
         self._populate_cards()
@@ -289,6 +312,7 @@ class PracticeApp(tk.Tk):
         for child in self.cards_frame.winfo_children():
             child.destroy()
         self.card_vars.clear()
+        self.card_metadata = {_card_id(card): card for card in self.cards}
         if not self.cards:
             ttk.Label(self.cards_frame, text="未能读取练习卡列表。", foreground=RED).grid(row=0, column=0, sticky="w")
             self.card_source_note.configure(text="请检查 v4 后端是否安装完整。")
@@ -296,11 +320,19 @@ class PracticeApp(tk.Tk):
         for i, card in enumerate(self.cards):
             card_id = _card_id(card)
             self.card_vars[card_id] = tk.BooleanVar(value=True)
+            meta = self.card_metadata.get(card_id, {})
+            refs = []
+            if meta.get("frozen_baseline_score") is not None:
+                refs.append(f"截图基线 {_score(meta['frozen_baseline_score'])}")
+            if meta.get("high_score") is not None:
+                refs.append(f"最高分 {_score(meta['high_score'])}")
             ttk.Checkbutton(self.cards_frame, text=_card_title(card), variable=self.card_vars[card_id]).grid(row=i, column=0, sticky="w", pady=1)
-        if any(isinstance(c, dict) and c.get("source") == "official" for c in self.cards):
-            self.card_source_note.configure(text="已加载官方公开本地练习卡；固定卡模式保留卡片与公开数据。")
+            if refs:
+                ttk.Label(self.cards_frame, text="  ·  ".join(refs), style="Muted.TLabel", anchor="e").grid(row=i, column=1, sticky="e", pady=1)
+        if self.mode_var.get() == CALIBRATION_MODE:
+            self.card_source_note.configure(text="α–δ 使用公开目录和日历，并在本地合成未公开环境；截图分数仅作校准参照，不代表官方隐藏真值。")
         else:
-            self.card_source_note.configure(text="卡片来源由后端决定；运行前请核对下方环境模式。")
+            self.card_source_note.configure(text="Seed 卡按所选基础型生成独立、可复现的本地合成环境；与 α–δ 固定校准卡分开。")
 
     def _environment_panel(self, parent: ttk.Frame, row: int) -> None:
         p = ttk.LabelFrame(parent, text="3  ·  环境与运行时限", padding=(9, 7))
@@ -308,21 +340,24 @@ class PracticeApp(tk.Tk):
         p.columnconfigure(0, weight=1)
         radios = ttk.Frame(p, style="Panel.TFrame")
         radios.grid(row=0, column=0, sticky="w")
-        labels = {"official-fixed": "官方固定卡", "stress-seed": "Seed 压力测试"}
-        modes = self.modes or ["stress-seed"]
+        labels = {CALIBRATION_MODE: "α–δ 固定校准", SEED_MODE: "Seed 额外测试"}
+        modes = self.modes or [SEED_MODE]
         for i, mode in enumerate(modes):
             ttk.Radiobutton(radios, text=labels.get(mode, mode), variable=self.mode_var, value=mode, command=self._update_mode).grid(row=0, column=i, sticky="w", padx=(0, 9))
-        line = ttk.Frame(p, style="Panel.TFrame")
-        line.grid(row=1, column=0, sticky="ew", pady=(5, 0))
-        ttk.Label(line, text="Seed").pack(side="left")
-        self.seed_entry = ttk.Entry(line, textvariable=self.seed_var, width=11)
-        self.seed_entry.pack(side="left", padx=(5, 12))
-        ttk.Label(line, text="每卡秒数").pack(side="left")
-        ttk.Entry(line, textvariable=self.seconds_var, width=7).pack(side="left", padx=(5, 4))
-        ttk.Label(line, text="最多 900", style="Muted.TLabel").pack(side="left")
-        ttk.Checkbutton(p, text="模拟每天最多 5 批（UTC 日期重置）", variable=self.quota_var, command=self._refresh_quota).grid(row=2, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(p, textvariable=self.quota_note_var, style="Muted.TLabel").grid(row=3, column=0, sticky="w")
-        ttk.Label(p, textvariable=self.mode_note_var, style="Muted.TLabel", wraplength=360, justify="left").grid(row=4, column=0, sticky="w", pady=(3, 0))
+        self.seed_controls = ttk.Frame(p, style="Panel.TFrame")
+        self.seed_controls.grid(row=1, column=0, sticky="ew", pady=(5, 0))
+        ttk.Label(self.seed_controls, text="额外测试 Seed").pack(side="left")
+        self.seed_entry = ttk.Entry(self.seed_controls, textvariable=self.seed_var, width=11)
+        self.seed_entry.pack(side="left", padx=(7, 12))
+        ttk.Label(self.seed_controls, text="相同 Seed 可复现", style="Muted.TLabel").pack(side="left")
+        runtime = ttk.Frame(p, style="Panel.TFrame")
+        runtime.grid(row=2, column=0, sticky="w", pady=(5, 0))
+        ttk.Label(runtime, text="每卡运行").pack(side="left")
+        ttk.Entry(runtime, textvariable=self.seconds_var, width=7).pack(side="left", padx=(6, 4))
+        ttk.Label(runtime, text="秒（最长 900）", style="Muted.TLabel").pack(side="left")
+        ttk.Checkbutton(p, text="模拟每天最多 5 批（UTC 日期重置）", variable=self.quota_var, command=self._refresh_quota).grid(row=3, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(p, textvariable=self.quota_note_var, style="Muted.TLabel").grid(row=4, column=0, sticky="w")
+        ttk.Label(p, textvariable=self.mode_note_var, style="Muted.TLabel", wraplength=360, justify="left").grid(row=5, column=0, sticky="w", pady=(3, 0))
 
     def _model_panel(self, parent: ttk.Frame, row: int) -> None:
         p = ttk.LabelFrame(parent, text="4  ·  决策模型", padding=(9, 7))
@@ -381,17 +416,15 @@ class PracticeApp(tk.Tk):
         self.log.configure(state="disabled")
 
     def _update_mode(self) -> None:
-        if self.mode_var.get() == "official-fixed":
-            self.mode_note_var.set("固定官方练习卡和公开数据；卡片本身不重新抽样。")
-            self.seed_entry.configure(state="disabled")
+        mode = self.mode_var.get()
+        self.cards = self._load_cards(mode)
+        self._populate_cards()
+        if mode == CALIBRATION_MODE:
+            self.mode_note_var.set("固定 α–δ 本地合成场景；用官网裸 Agent 截图分数作参照，不代表官方真值。")
+            self.seed_controls.grid_remove()
         else:
-            official_cards = any(isinstance(c, dict) and c.get("source") == "official" for c in self.cards)
-            if official_cards:
-                note = "固定官方卡；Seed 只用于后端明确支持的天气、故障等隐藏状态压力测试。"
-            else:
-                note = "当前后端提供种子化本地生成卡，用于压力测试；其分数不等同于官方固定练习卡成绩。"
-            self.mode_note_var.set(note)
-            self.seed_entry.configure(state="normal")
+            self.mode_note_var.set("Seed 生成与校准卡分离的可复现测试卡；Seed 只改变本地合成环境。")
+            self.seed_controls.grid()
 
     def _update_model(self) -> None:
         state = "normal" if self.model_mode_var.get() == "anyrouter" else "disabled"
@@ -453,10 +486,18 @@ class PracticeApp(tk.Tk):
         interpreter_text = self.interpreter_var.get().strip()
         cards = self._selected_cards()
         try:
-            seed, seconds = int(self.seed_var.get().strip()), float(self.seconds_var.get().strip())
+            seconds = float(self.seconds_var.get().strip())
         except ValueError:
-            messagebox.showwarning("参数格式错误", "Seed 必须是整数，每卡秒数必须是数字。")
+            messagebox.showwarning("参数格式错误", "每卡运行秒数必须是数字。")
             return
+        if self.mode_var.get() == SEED_MODE:
+            try:
+                seed = int(self.seed_var.get().strip())
+            except ValueError:
+                messagebox.showwarning("Seed 格式错误", "额外测试 Seed 必须是整数。")
+                return
+        else:
+            seed = 0
         if not agent.exists():
             messagebox.showerror("Agent 入口无效", "选择现存的 .py 文件或项目目录。")
             return
@@ -492,7 +533,14 @@ class PracticeApp(tk.Tk):
         for item in self.results.get_children():
             self.results.delete(item)
         for card in cards:
-            self.card_rows[card] = self.results.insert("", "end", values=(card, "排队中", "—", "—", "—", ""))
+            meta = self.card_metadata.get(card, {})
+            symbol = str(meta.get("symbol") or "")
+            title = str(meta.get("title") or meta.get("label") or card)
+            baseline_value = meta.get("calibration_target_score", meta.get("frozen_baseline_score"))
+            baseline = _score(baseline_value) if baseline_value is not None else "—"
+            high = _score(meta.get("high_score")) if meta.get("high_score") is not None else "—"
+            label = (symbol + "  " if symbol else "") + title
+            self.card_rows[card] = self.results.insert("", "end", iid=card, values=(label, "排队中", "—", baseline, "—", high, "—", "—", ""))
         self.status_var.set("运行中")
         self.status_badge.configure(bg="#1f684f")
         self.run_button.configure(text="■   停止运行", style="Danger.TButton", state="normal")
@@ -520,10 +568,8 @@ class PracticeApp(tk.Tk):
     def _run_worker(self, agent: Path, cards: list[str], seed: int, output: Path,
                     interpreter: str | None, seconds: float, enforce_quota: bool,
                     mode: str, model_mode: str, base_url: str, model: str, api_key: str) -> None:
-        old_key, had_key = os.environ.get("OPENAI_API_KEY"), "OPENAI_API_KEY" in os.environ
-        secret_to_redact = api_key.strip() or old_key or ""
-        if api_key.strip():
-            os.environ["OPENAI_API_KEY"] = api_key.strip()
+        effective_api_key = api_key.strip() or os.environ.get("OPENAI_API_KEY", "")
+        secret_to_redact = effective_api_key
         try:
             kwargs: dict[str, Any] = {
                 "agent": agent, "card_ids": cards, "seed": seed, "output_root": output,
@@ -537,17 +583,13 @@ class PracticeApp(tk.Tk):
             elif "mode" in _BACKEND_PARAMS:
                 kwargs["mode"] = mode
             if "api_key" in _BACKEND_PARAMS:
-                kwargs["api_key"] = api_key.strip()
+                kwargs["api_key"] = effective_api_key
             run_batch(**kwargs)
         except BaseException as exc:
             error = str(exc).replace(secret_to_redact, "[REDACTED]") if secret_to_redact else str(exc)
             trace = traceback.format_exc().replace(secret_to_redact, "[REDACTED]") if secret_to_redact else traceback.format_exc()
             self.events.put({"type": "error", "message": f"{type(exc).__name__}: {error}", "traceback": trace})
         finally:
-            if had_key:
-                os.environ["OPENAI_API_KEY"] = old_key or ""
-            else:
-                os.environ.pop("OPENAI_API_KEY", None)
             self.events.put({"type": "_thread_finished"})
 
     def _set_row(self, card: str, **changes: Any) -> None:
@@ -555,12 +597,108 @@ class PracticeApp(tk.Tk):
         if item is None:
             return
         values = list(self.results.item(item, "values"))
-        indexes = {"status": 1, "score": 2, "observed": 3, "missing": 4, "output": 5}
+        indexes = {"status": 1, "score": 2, "observed": 6, "missing": 7, "output": 8}
         for key, value in changes.items():
             if key in indexes and value is not None:
-                values[indexes[key]] = value
+                values[indexes[key]] = _score(value) if key == "score" else value
+        if changes.get("score") is not None:
+            try:
+                local_score = float(changes["score"])
+                meta = self.card_metadata.get(card, {})
+                baseline = float(meta.get("calibration_target_score", meta.get("frozen_baseline_score")))
+                values[4] = f"{local_score - baseline:+,.2f}"
+            except (TypeError, ValueError):
+                values[4] = "—"
         tag = changes.get("tag")
         self.results.item(item, values=values, tags=(tag,) if tag else ())
+
+    def _show_selected_details(self) -> None:
+        if not hasattr(self, "details"):
+            return
+        selected = self.results.selection()
+        lines: list[str] = []
+        if not selected:
+            lines.append("选择一张卡查看评分器明细。")
+        else:
+            card = selected[0]
+            values = self.results.item(card, "values")
+            meta = self.card_metadata.get(card, {})
+            lines.extend([
+                f"卡片：{values[0]}",
+                f"本地合成分数：{values[2]}    截图校准目标：{values[3]}    目标偏差：{values[4]}    参考高分：{values[5]}",
+            ])
+            output_dir = str(values[8] or "")
+            report_path = Path(output_dir) / "score_report.json" if output_dir else None
+            report: dict[str, Any] = {}
+            if report_path and report_path.is_file():
+                try:
+                    loaded = json.loads(report_path.read_text(encoding="utf-8"))
+                    report = loaded if isinstance(loaded, dict) else {}
+                except (OSError, ValueError) as exc:
+                    lines.append(f"评分文件读取失败：{exc}")
+            else:
+                lines.append("评分文件尚未生成；运行完成后会显示完整指标。")
+            components = report.get("components")
+            if isinstance(components, dict):
+                lines.append("评分构成（官方 score_report.components）")
+                labels = {
+                    "sum_best_scores": "最佳目标得分合计",
+                    "required_penalty": "必做目标惩罚",
+                    "report_settlement": "报告结算",
+                    "uniformity_penalty": "均匀性惩罚",
+                    "observation_request_reward": "限时请求奖励",
+                }
+                lines.extend(
+                    f"  {labels.get(key, key)}（{key}）：{_score(value)}"
+                    for key, value in sorted(components.items())
+                )
+            counts = report.get("counts")
+            if isinstance(counts, dict):
+                lines.append("运行计数（官方 score_report.counts）")
+                labels = {
+                    "decisions": "裁判记录数（观测、等待及报告动作）",
+                    "observe_actions": "观测动作数",
+                    "observations": "观测记录数",
+                    "targets_observed": "已观测目标数",
+                    "required_missing": "未完成必做目标数",
+                    "invalidated_observations": "失效观测数",
+                    "observation_requests_issued": "已发布限时请求数",
+                    "observation_requests_completed": "已完成限时请求数",
+                }
+                lines.extend(
+                    f"  {labels.get(key, key)}（{key}）：{value}"
+                    for key, value in sorted(counts.items())
+                )
+                lines.append("字段口径：decisions、observe_actions 和 observations 含义不同，分别展示，不映射为“结果提交数”。")
+            by_class = report.get("by_class")
+            if isinstance(by_class, dict):
+                lines.append("目标类别得分（by_class）")
+                lines.extend(f"  {key}：{_score(value)}" for key, value in sorted(by_class.items()))
+            bands = report.get("uniformity_bands")
+            if isinstance(bands, dict):
+                lines.append("均匀性分布（uniformity_bands）")
+                lines.extend(f"  {key}：{_score(value)}" for key, value in sorted(bands.items()))
+            requests = report.get("observation_requests")
+            if isinstance(requests, list):
+                lines.append("限时请求结算")
+                for item in requests:
+                    if isinstance(item, dict):
+                        state = "完成" if item.get("completed") else "未完成"
+                        done = item.get("completed_count", 0)
+                        minimum = item.get("minimum_completed", "—")
+                        reward = _score(item.get("reward", 0))
+                        lines.append(f"  {item.get('request_id', '请求')}：{state}，完成 {done}/{minimum}，奖励 {reward}")
+            termination = report.get("termination")
+            if isinstance(termination, dict):
+                lines.append(f"结束状态：{_status(termination.get('reason'))}")
+                if termination.get("detail"):
+                    lines.append(f"结束说明：{termination['detail']}")
+            if not report and meta.get("source") == "synthetic-seed-profile":
+                lines.append("该 Seed 运行与 α–δ 截图校准组分开。")
+        self.details.configure(state="normal")
+        self.details.delete("1.0", "end")
+        self.details.insert("end", "\n".join(lines))
+        self.details.configure(state="disabled")
 
     def _handle(self, event: dict[str, Any]) -> None:
         kind = event.get("type")
@@ -574,23 +712,26 @@ class PracticeApp(tk.Tk):
                 self.quota_note_var.set(f"UTC {q.get('utc_date', '')}：已用 {q.get('attempts', 0)}/{q.get('limit', 5)} 批")
             return
         if kind in {"card_start", "batch_card_start"}:
-            self.current_card = str(event.get("card_id") or event.get("card") or "")
+            self.current_card = str(event.get("requested_card_id") or event.get("card_id") or event.get("card") or "")
             self._set_row(self.current_card, status="运行中", output=str(event.get("output_dir", "")), tag="running")
             self.progress_note_var.set(f"正在运行 {self.current_card}  ({self.completed + 1}/{self.requested})")
             self._append_log(f"开始练习卡 {self.current_card}")
             return
         if kind == "card_done":
-            card = str(event.get("card_id") or self.current_card)
+            card = str(event.get("requested_card_id") or event.get("card_id") or self.current_card)
             if event.get("termination_reason") in {"runner_error", "agent_error", "agent_initialization_error"}:
                 self.had_error = True
-            self._set_row(card, status=_status(event.get("termination_reason")), score=_score(event.get("score")), output=str(event.get("output_dir", "")), tag="done")
+            self._set_row(card, status=_status(event.get("termination_reason")), score=event.get("score"), output=str(event.get("output_dir", "")), tag="done")
             self._append_log(f"练习卡 {card} 结束：{_status(event.get('termination_reason'))}，分数 {_score(event.get('score'))}", good=True)
             return
         if kind == "batch_card_done":
-            card = str(event.get("card_id") or "")
+            card = str(event.get("requested_card_id") or event.get("card_id") or "")
             if event.get("termination_reason") in {"runner_error", "agent_error", "agent_initialization_error"}:
                 self.had_error = True
-            self._set_row(card, status=_status(event.get("termination_reason")), score=_score(event.get("total")), observed=event.get("targets_observed", "—"), missing=event.get("required_missing", "—"), output=str(event.get("output_dir", "")), tag="done")
+            self._set_row(card, status=_status(event.get("termination_reason")), score=event.get("total"), observed=event.get("targets_observed", "—"), missing=event.get("required_missing", "—"), output=str(event.get("output_dir", "")), tag="done")
+            if card in self.card_rows:
+                self.results.selection_set(self.card_rows[card])
+                self._show_selected_details()
             self.completed += 1
             self.progress.configure(value=self.completed)
             self.progress_note_var.set(f"已完成 {self.completed}/{self.requested} 张卡")
@@ -618,7 +759,8 @@ class PracticeApp(tk.Tk):
             self._append_log(str(event.get("message") or event.get("error") or "未知错误"), error=True)
             if event.get("traceback"):
                 self._append_log(str(event["traceback"]), error=True)
-            self._set_row(str(event.get("card_id") or self.current_card), status="运行错误", tag="error")
+            card = str(event.get("requested_card_id") or event.get("card_id") or self.current_card)
+            self._set_row(card, status="运行错误", tag="error")
             return
         if kind in {"decision", "progress", "step"}:
             self.progress_note_var.set(f"{self.current_card} · 决策 {event.get('decision_sequence', event.get('step', ''))}")
@@ -650,7 +792,7 @@ class PracticeApp(tk.Tk):
         if not selected:
             messagebox.showinfo("没有选中卡片", "请先选择结果表中的练习卡。")
             return
-        self._open(self.results.item(selected[0], "values")[5])
+        self._open(self.results.item(selected[0], "values")[8])
 
     def _open(self, value: Any) -> None:
         if not value:
@@ -675,9 +817,9 @@ def _smoke_test(output_root: Path, seconds: float) -> int:
         print(f"backend import failed: {_BACKEND_IMPORT_ERROR}", file=sys.stderr)
         return 2
     try:
-        ids = [_card_id(card) for card in available_cards()]
+        ids = [_card_id(card) for card in available_cards(CALIBRATION_MODE)]
         result = run_batch(Path(default_agent_path()), ids, 0, output_root,
-                           wallclock_seconds=seconds, enforce_quota=False, mode="official-fixed")
+                           wallclock_seconds=seconds, enforce_quota=False, mode=CALIBRATION_MODE)
         errors = [x for x in result.get("results", []) if x.get("termination_reason") == "runner_error"]
         print(f"cards={len(result.get('results', []))} runner_errors={len(errors)}", file=sys.stderr)
         return int(bool(errors))
