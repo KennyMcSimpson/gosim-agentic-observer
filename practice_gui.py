@@ -84,8 +84,18 @@ class PracticeApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("GOSIM · 巡天智能体本地评测")
-        self.geometry("1480x960")
-        self.minsize(1220, 780)
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        min_width = max(640, min(1220, screen_width - 32))
+        min_height = max(520, min(780, screen_height - 80))
+        window_width = max(min_width, min(1480, screen_width - 24))
+        window_height = max(min_height, min(960, screen_height - 48))
+        self.minsize(min_width, min_height)
+        self.geometry(
+            f"{window_width}x{window_height}+"
+            f"{max(0, (screen_width - window_width) // 2)}+"
+            f"{max(0, (screen_height - window_height) // 2)}"
+        )
         self.configure(bg=BG)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.events: queue.Queue[dict[str, Any]] = queue.Queue()
@@ -200,16 +210,37 @@ class PracticeApp(tk.Tk):
         body.columnconfigure(0, minsize=400, weight=0)
         body.columnconfigure(1, weight=1)
         body.rowconfigure(0, weight=1)
-        self.left_panel = ttk.Frame(body, style="Panel.TFrame", padding=11)
-        self.left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        self.left_container = ttk.Frame(body, style="Panel.TFrame", padding=11)
+        self.left_container.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        self.left_container.columnconfigure(0, weight=1)
+        self.left_container.rowconfigure(0, weight=1)
+        self.left_canvas = tk.Canvas(
+            self.left_container, bg=PANEL, highlightthickness=0, borderwidth=0
+        )
+        self.left_canvas.grid(row=0, column=0, sticky="nsew")
+        self.left_scrollbar = ttk.Scrollbar(
+            self.left_container, orient="vertical", command=self.left_canvas.yview
+        )
+        self.left_scrollbar.grid(row=0, column=1, sticky="ns", padx=(6, 0))
+        self.left_canvas.configure(yscrollcommand=self.left_scrollbar.set)
+        self.left_panel = ttk.Frame(self.left_canvas, style="Panel.TFrame")
+        self.left_window = self.left_canvas.create_window(
+            (0, 0), window=self.left_panel, anchor="nw"
+        )
+        self.left_panel.bind("<Configure>", self._update_left_scrollregion)
+        self.left_canvas.bind(
+            "<Configure>",
+            lambda event: self.left_canvas.itemconfigure(self.left_window, width=event.width),
+        )
+        self.bind_all("<MouseWheel>", self._scroll_left_panel, add="+")
         self.left_panel.columnconfigure(0, weight=1)
         self._agent_panel(self.left_panel, 0)
         self._cards_panel(self.left_panel, 1)
         self._environment_panel(self.left_panel, 2)
         self._model_panel(self.left_panel, 3)
         self._output_panel(self.left_panel, 4)
-        self.run_button = ttk.Button(self.left_panel, text="▶   开始本地评测", style="Primary.TButton", command=self._start_or_stop)
-        self.run_button.grid(row=5, column=0, sticky="ew", pady=(9, 0))
+        self.run_button = ttk.Button(self.left_container, text="▶   开始本地评测", style="Primary.TButton", command=self._start_or_stop)
+        self.run_button.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(9, 0))
 
         right = ttk.Frame(body, style="Panel.TFrame", padding=13)
         right.grid(row=0, column=1, sticky="nsew")
@@ -277,6 +308,18 @@ class PracticeApp(tk.Tk):
         self.log.grid(row=7, column=0, sticky="nsew")
         self.log.tag_configure("error", foreground="#ff9292")
         self.log.tag_configure("good", foreground="#8fe0b5")
+
+    def _update_left_scrollregion(self, _event: tk.Event | None = None) -> None:
+        self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all"))
+
+    def _scroll_left_panel(self, event: tk.Event) -> None:
+        pointer_x, pointer_y = self.winfo_pointerxy()
+        widget = self.winfo_containing(pointer_x, pointer_y)
+        while widget is not None:
+            if widget is self.left_container:
+                self.left_canvas.yview_scroll(int(-event.delta / 120), "units")
+                return
+            widget = getattr(widget, "master", None)
 
     def _agent_panel(self, parent: ttk.Frame, row: int) -> None:
         p = ttk.LabelFrame(parent, text="1  ·  Agent 入口", padding=(9, 7))
